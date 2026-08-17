@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+instance/
+.DS_Store
+*.pyc
+k8s/mysql-secret.yaml

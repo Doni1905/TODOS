@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 50px 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 550px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 24px;
+            font-weight: 700;
+        }
+
+        /* Input row */
+        .add-form {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 12px;
+        }
+
+        .add-form input {
+            flex: 1;
+            padding: 10px 0;
+            border: none;
+            font-size: 1rem;
+            outline: none;
+            background: transparent;
+            color: #333;
+        }
+
+        .add-form input::placeholder {
+            color: #aaa;
+        }
+
+        .add-form button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #333;
+            color: white;
+            border: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.1s;
+            flex-shrink: 0;
+        }
+
+        .add-form button:hover {
+            background: #555;
+        }
+
+        .add-form button:active {
+            transform: scale(0.92);
+        }
+
+        /* Todo list */
+        .todo-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 20px;
+            background: white;
+            border: 1.5px solid #e8e8e8;
+            border-radius: 12px;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+
+        .todo-item:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border-color: #d0d0d0;
+        }
+
+        .todo-item input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            accent-color: #4a90d9;
+            flex-shrink: 0;
+        }
+
+        .todo-item span {
+            flex: 1;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .todo-item.completed span {
+            text-decoration: line-through;
+            color: #aaa;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            font-size: 1.3rem;
+            color: #bbb;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: color 0.2s, background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .delete-btn:hover {
+            color: #e74c3c;
+            background: #fdf0ef;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #aaa;
+            padding: 40px 20px;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Your To Do</h1>
+
+        <form class="add-form" id="addForm">
+            <input
+                type="text"
+                id="todoInput"
+                placeholder="Add new task"
+                aria-label="Add new task"
+                required
+            />
+            <button type="submit" aria-label="Add todo">+</button>
+        </form>
+
+        <ul class="todo-list" id="todoList" aria-label="Todo list">
+        </ul>
+    </div>
+
+    <script>
+        const LIST_ID = '{{ list_id }}';
+        const API_URL = `/api/${LIST_ID}`;
+        const todoList = document.getElementById('todoList');
+        const addForm = document.getElementById('addForm');
+        const todoInput = document.getElementById('todoInput');
+
+        // Fetch and render all todos
+        async function loadTodos() {
+            const res = await fetch(`${API_URL}/todos`);
+            const todos = await res.json();
+            renderTodos(todos);
+        }
+
+        // Render the todo list
+        function renderTodos(todos) {
+            if (todos.length === 0) {
+                todoList.innerHTML = '<li class="empty-state">No tasks yet. Add one above!</li>';
+                return;
+            }
+
+            todoList.innerHTML = todos.map(todo => `
+                <li class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+                    <input
+                        type="checkbox"
+                        ${todo.completed ? 'checked' : ''}
+                        onchange="toggleTodo(${todo.id}, this.checked)"
+                        aria-label="Mark as ${todo.completed ? 'incomplete' : 'complete'}"
+                    />
+                    <span>${escapeHtml(todo.title)}</span>
+                    <button class="delete-btn" onclick="deleteTodo(${todo.id})" aria-label="Delete task">&times;</button>
+                </li>
+            `).join('');
+        }
+
+        // Add a new todo
+        addForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = todoInput.value.trim();
+            if (!title) return;
+
+            await fetch(`${API_URL}/todo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title })
+            });
+
+            todoInput.value = '';
+            todoInput.focus();
+            loadTodos();
+        });
+
+        // Toggle todo completion
+        async function toggleTodo(id, completed) {
+            await fetch(`${API_URL}/todo/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed })
+            });
+            loadTodos();
+        }
+
+        // Delete a todo
+        async function deleteTodo(id) {
+            await fetch(`${API_URL}/todo/${id}`, {
+                method: 'DELETE'
+            });
+            loadTodos();
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load todos on page load
+        loadTodos();
+    </script>
+</body>
+</html>

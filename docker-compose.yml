@@ -1,0 +1,47 @@
+services:
+  # ─── Flask Todo App ───
+  flask_app:
+    build: .
+    container_name: todos
+    ports:
+      - "5001:5001"
+    environment:
+      - MYSQL_HOST=mysql_database
+      - MYSQL_PORT=3306
+      - MYSQL_USER=todouser
+      - MYSQL_PASSWORD=todopassword
+      - MYSQL_DATABASE=tododb
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    networks:
+      - apps
+    restart: on-failure
+
+  # ─── MySQL Database (internal only, not exposed to host) ───
+  mysql_db:
+    image: mysql:8.0
+    container_name: mysql_database
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=tododb
+      - MYSQL_USER=todouser
+      - MYSQL_PASSWORD=todopassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - apps
+    restart: unless-stopped
+
+networks:
+  apps:
+    driver: bridge    # Compose creates and manages this network itself
+
+volumes:
+  mysql_data:
