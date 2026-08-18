@@ -12,13 +12,13 @@
         :root {
             --accent-color: #4ECDC4;
             --accent-hover: #3db8b0;
-            --card-bg: rgba(255, 255, 255, 0.92);
-            --card-bg-dark: rgba(40, 40, 40, 0.92);
-            --column-bg: rgba(255, 255, 255, 0.85);
-            --column-bg-dark: rgba(30, 30, 30, 0.88);
-            --text-primary: #333;
-            --text-secondary: #666;
-            --text-muted: #999;
+            --card-bg: transparent;
+            --card-bg-dark: transparent;
+            --column-bg: transparent;
+            --column-bg-dark: transparent;
+            --text-primary: #fff;
+            --text-secondary: rgba(255,255,255,0.8);
+            --text-muted: rgba(255,255,255,0.5);
         }
 
         * {
@@ -143,18 +143,19 @@
             flex: 1;
             min-width: 280px;
             max-width: 400px;
-            background: var(--column-bg);
+            background: transparent;
             border-radius: 16px;
             padding: 20px;
-            backdrop-filter: blur(10px);
+            border: 1.5px solid rgba(0, 0, 0, 0.4);
             display: flex;
             flex-direction: column;
             max-height: calc(100vh - 200px);
-            transition: background 0.3s;
+            transition: background 0.3s, border-color 0.3s;
         }
 
         [data-bs-theme="dark"] .kanban-column {
-            background: var(--column-bg-dark);
+            background: transparent;
+            border-color: rgba(0, 0, 0, 0.25);
         }
 
         .column-header {
@@ -168,11 +169,12 @@
         .column-title {
             font-size: 1.1rem;
             font-weight: 700;
-            color: var(--text-primary);
+            color: #fff;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.5);
         }
 
         [data-bs-theme="dark"] .column-title {
-            color: #eee;
+            color: #fff;
         }
 
         .btn-add-column {
@@ -205,23 +207,25 @@
 
         /* Todo cards */
         .todo-card {
-            background: var(--card-bg);
+            background: transparent;
             border-radius: 12px;
             padding: 14px 16px;
+            border: 1px solid rgba(0, 0, 0, 0.3);
             display: flex;
             align-items: flex-start;
             gap: 12px;
-            transition: box-shadow 0.2s, transform 0.15s;
+            transition: border-color 0.2s, transform 0.15s;
             cursor: default;
         }
 
         .todo-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: rgba(16, 7, 7, 0.6);
             transform: translateY(-1px);
         }
 
         [data-bs-theme="dark"] .todo-card {
-            background: var(--card-bg-dark);
+            background: transparent;
+            border-color: rgba(0, 0, 0, 0.2);
         }
 
         .todo-checkbox {
@@ -229,7 +233,7 @@
             height: 22px;
             min-width: 22px;
             border-radius: 50%;
-            border: 2px solid #ccc;
+            border: 2px solid rgba(255,255,255,0.7);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -264,35 +268,46 @@
 
         .todo-title {
             font-size: 0.95rem;
-            color: var(--text-primary);
+            color: #222;
             word-wrap: break-word;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 6px 12px;
+            border-radius: 8px;
+            display: block;
+            width: 100%;
         }
 
         [data-bs-theme="dark"] .todo-title {
-            color: #ddd;
+            color: #eee;
+            background: rgba(0, 0, 0, 0.6);
         }
 
         .todo-card.completed .todo-title {
             text-decoration: line-through;
-            color: var(--text-muted);
+            color: #888;
+            background: rgba(255, 255, 255, 0.5);
         }
 
         .todo-description {
             font-size: 0.82rem;
-            color: var(--text-secondary);
+            color: #333;
             margin-top: 6px;
             white-space: pre-line;
             line-height: 1.5;
+            background: rgba(255, 255, 255, 0.75);
+            padding: 4px 10px;
+            border-radius: 6px;
         }
 
         [data-bs-theme="dark"] .todo-description {
-            color: #aaa;
+            color: #ccc;
+            background: rgba(0, 0, 0, 0.5);
         }
 
         .todo-delete {
             background: none;
             border: none;
-            color: #bbb;
+            color: rgba(255,255,255,0.6);
             font-size: 1.2rem;
             cursor: pointer;
             padding: 2px 6px;
@@ -308,7 +323,7 @@
 
         .todo-delete:hover {
             color: #e74c3c;
-            background: rgba(231, 76, 60, 0.1);
+            background: rgba(231, 76, 60, 0.2);
         }
 
         /* Inline add form */
@@ -324,11 +339,18 @@
         .inline-add input {
             width: 100%;
             padding: 10px 14px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
+            border: none;
+            border-bottom: 2px solid rgba(255,255,255,0.5);
+            border-radius: 0;
             font-size: 0.9rem;
             outline: none;
+            background: transparent;
+            color: #fff;
             transition: border-color 0.2s;
+        }
+
+        .inline-add input::placeholder {
+            color: rgba(255,255,255,0.5);
         }
 
         .inline-add input:focus {
@@ -336,21 +358,22 @@
         }
 
         [data-bs-theme="dark"] .inline-add input {
-            background: #2d2d2d;
-            border-color: #444;
+            background: transparent;
+            border-color: rgba(255,255,255,0.3);
             color: #eee;
         }
 
         /* Empty state */
         .empty-state {
             text-align: center;
-            color: var(--text-muted);
+            color: rgba(255,255,255,0.7);
             padding: 30px 16px;
             font-size: 0.9rem;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.3);
         }
 
         [data-bs-theme="dark"] .empty-state {
-            color: #777;
+            color: rgba(255,255,255,0.5);
         }
 
         /* Footer */
@@ -466,7 +489,7 @@
 
         /* Background fallback gradient */
         .bg-fallback {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #88888a 0%, #6ce5a1 100%);
         }
     </style>
 </head>
