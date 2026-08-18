@@ -17,6 +17,8 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment: TODOS
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
