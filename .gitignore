@@ -4,3 +4,4 @@ instance/
 .DS_Store
 *.pyc
 k8s/mysql-secret.yaml
+ArgoCD/base/mysql-secret.yaml
