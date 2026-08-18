@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: flask-app
-          image: doni502/todos:24442130ed0bc53f6db5723a58eb5f99dee1b133
+          image: doni502/todos:9fefbd7a74b2407aa3c17b0b3225f42a34cb1d56
           resources:
             requests:
               cpu: "100m"
