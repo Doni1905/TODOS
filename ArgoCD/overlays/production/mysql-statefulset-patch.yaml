@@ -14,12 +14,3 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1Gi"
-  volumeClaimTemplates:
-    - metadata:
-        name: mysql-data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: gp2
-        resources:
-          requests:
-            storage: 6Gi
