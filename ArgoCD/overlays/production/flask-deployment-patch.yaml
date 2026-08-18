@@ -4,11 +4,16 @@ metadata:
   name: flask-app
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   template:
     spec:
       containers:
         - name: flask-app
-          image: doni502/todos:latest
+          image: doni502/todos:2.0
           resources:
             requests:
               cpu: "100m"
