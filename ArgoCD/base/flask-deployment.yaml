@@ -39,3 +39,9 @@ spec:
                 secretKeyRef:
                   name: mysql-secret
                   key: MYSQL_DATABASE
+            - name: UNSPLASH_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: UNSPLASH_ACCESS_KEY
+                  optional: true

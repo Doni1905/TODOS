@@ -11,6 +11,7 @@ services:
       - MYSQL_USER=todouser
       - MYSQL_PASSWORD=todopassword
       - MYSQL_DATABASE=tododb
+      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY:-}
     depends_on:
       mysql_db:
         condition: service_healthy

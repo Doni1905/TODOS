@@ -5,3 +5,5 @@ instance/
 *.pyc
 k8s/mysql-secret.yaml
 ArgoCD/base/mysql-secret.yaml
+.env
+node_modules/

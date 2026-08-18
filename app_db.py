@@ -7,12 +7,14 @@ import uuid
 app = Flask(__name__)
 
 # MySQL connection using environment variables
-# In Docker Compose, the hostname is the service name (mysql_db)
 MYSQL_HOST = os.environ.get('MYSQL_HOST', 'mysql_db')
 MYSQL_PORT = os.environ.get('MYSQL_PORT', '3306')
 MYSQL_USER = os.environ.get('MYSQL_USER', 'root')
 MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'rootpassword')
 MYSQL_DATABASE = os.environ.get('MYSQL_DATABASE', 'tododb')
+
+# Unsplash API key (passed to frontend template)
+UNSPLASH_ACCESS_KEY = os.environ.get('UNSPLASH_ACCESS_KEY', '')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     f'mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}'
@@ -21,13 +23,17 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+VALID_CATEGORIES = ('today', 'this_week', 'eventually')
+
 
 # Todo model
 class Todo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     list_id = db.Column(db.String(8), nullable=False, index=True)
     title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
     completed = db.Column(db.Boolean, default=False)
+    category = db.Column(db.String(20), nullable=False, default='today')
     position = db.Column(db.Integer, nullable=False, default=0)
 
     def to_dict(self):
@@ -35,7 +41,9 @@ class Todo(db.Model):
             'id': self.id,
             'list_id': self.list_id,
             'title': self.title,
+            'description': self.description,
             'completed': self.completed,
+            'category': self.category,
             'position': self.position
         }
 
@@ -52,7 +60,7 @@ def index():
 @app.route('/list/<list_id>')
 def show_list(list_id):
     """Serve the todo app UI for a specific list."""
-    return render_template('index.html', list_id=list_id)
+    return render_template('index.html', list_id=list_id, unsplash_key=UNSPLASH_ACCESS_KEY)
 
 
 @app.route('/api/<list_id>/todos', methods=['GET'])
@@ -70,13 +78,24 @@ def add_todo(list_id):
     if not data or 'title' not in data:
         return jsonify({'error': 'Title is required'}), 400
 
-    # Get the next position (append to end) for this list
+    category = data.get('category', 'today')
+    if category not in VALID_CATEGORIES:
+        return jsonify({'error': f'Invalid category. Must be one of: {VALID_CATEGORIES}'}), 400
+
+    # Get the next position (append to end) for this list + category
     max_pos = db.session.query(db.func.max(Todo.position)).filter(
-        Todo.list_id == list_id
+        Todo.list_id == list_id,
+        Todo.category == category
     ).scalar()
     next_pos = (max_pos + 1) if max_pos is not None else 0
 
-    todo = Todo(title=data['title'], position=next_pos, list_id=list_id)
+    todo = Todo(
+        title=data['title'],
+        description=data.get('description'),
+        category=category,
+        position=next_pos,
+        list_id=list_id
+    )
     db.session.add(todo)
     db.session.commit()
 
@@ -93,19 +112,26 @@ def insert_todo_at_index(list_id):
 
     index = data['index']
     title = data['title']
+    category = data.get('category', 'today')
+    description = data.get('description')
 
-    total = Todo.query.filter_by(list_id=list_id).count()
+    if category not in VALID_CATEGORIES:
+        return jsonify({'error': f'Invalid category. Must be one of: {VALID_CATEGORIES}'}), 400
+
+    total = Todo.query.filter_by(list_id=list_id, category=category).count()
 
     if index < 0 or index > total:
         return jsonify({'error': 'Index out of range'}), 400
 
-    # Shift all todos at or after this index down by 1 (only in this list)
-    Todo.query.filter(Todo.list_id == list_id, Todo.position >= index).update(
-        {Todo.position: Todo.position + 1}
-    )
+    # Shift all todos at or after this index down by 1 (only in this list + category)
+    Todo.query.filter(
+        Todo.list_id == list_id,
+        Todo.category == category,
+        Todo.position >= index
+    ).update({Todo.position: Todo.position + 1})
 
     # Insert new todo at the desired position
-    todo = Todo(title=title, position=index, list_id=list_id)
+    todo = Todo(title=title, description=description, position=index, list_id=list_id, category=category)
     db.session.add(todo)
     db.session.commit()
 
@@ -114,7 +140,7 @@ def insert_todo_at_index(list_id):
 
 @app.route('/api/<list_id>/todo/<int:todo_id>', methods=['PUT'])
 def update_todo(list_id, todo_id):
-    """Update a todo (toggle completed)."""
+    """Update a todo (toggle completed, change title, description, category)."""
     todo = Todo.query.filter_by(id=todo_id, list_id=list_id).first()
 
     if not todo:
@@ -123,9 +149,55 @@ def update_todo(list_id, todo_id):
     data = request.get_json()
     if 'completed' in data:
         todo.completed = data['completed']
+    if 'title' in data:
+        todo.title = data['title']
+    if 'description' in data:
+        todo.description = data['description']
+    if 'category' in data:
+        if data['category'] not in VALID_CATEGORIES:
+            return jsonify({'error': f'Invalid category. Must be one of: {VALID_CATEGORIES}'}), 400
+        todo.category = data['category']
 
     db.session.commit()
     return jsonify(todo.to_dict()), 200
+
+
+@app.route('/api/<list_id>/todo/<int:todo_id>/move', methods=['PATCH'])
+def move_todo(list_id, todo_id):
+    """Move a todo to a different category."""
+    todo = Todo.query.filter_by(id=todo_id, list_id=list_id).first()
+
+    if not todo:
+        return jsonify({'error': 'Todo not found'}), 404
+
+    data = request.get_json()
+    if not data or 'category' not in data:
+        return jsonify({'error': 'Category is required'}), 400
+
+    category = data['category']
+    if category not in VALID_CATEGORIES:
+        return jsonify({'error': f'Invalid category. Must be one of: {VALID_CATEGORIES}'}), 400
+
+    # Get next position in the target category
+    max_pos = db.session.query(db.func.max(Todo.position)).filter(
+        Todo.list_id == list_id,
+        Todo.category == category
+    ).scalar()
+    next_pos = (max_pos + 1) if max_pos is not None else 0
+
+    todo.category = category
+    todo.position = next_pos
+    db.session.commit()
+
+    return jsonify(todo.to_dict()), 200
+
+
+@app.route('/api/<list_id>/todos/completed', methods=['DELETE'])
+def delete_completed(list_id):
+    """Bulk delete all completed todos in a list."""
+    deleted_count = Todo.query.filter_by(list_id=list_id, completed=True).delete()
+    db.session.commit()
+    return jsonify({'message': f'{deleted_count} completed todos removed', 'count': deleted_count}), 200
 
 
 @app.route('/api/<list_id>/todo/<int:todo_id>', methods=['DELETE'])
