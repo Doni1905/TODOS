@@ -42,3 +42,15 @@ jobs:
             ${{ env.DOCKER_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Update image tag in ArgoCD manifest
+        run: |
+          sed -i "s|image: doni502/todos:.*|image: doni502/todos:${{ github.sha }}|" ArgoCD/overlays/production/flask-deployment-patch.yaml
+
+      - name: Commit and push manifest update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ArgoCD/overlays/production/flask-deployment-patch.yaml
+          git diff --staged --quiet || git commit -m "chore: update image tag to ${{ github.sha }}"
+          git push
