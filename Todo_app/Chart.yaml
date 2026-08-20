@@ -1,0 +1,12 @@
+apiVersion: v2
+name: todo-app
+description: A Helm chart for Flask Todo App with MySQL backend
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - flask
+  - todo
+  - mysql
+maintainers:
+  - name: Doneeswaran

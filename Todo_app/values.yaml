@@ -1,0 +1,64 @@
+# Flask Todo App - Helm Values
+
+replicaCount: 1
+
+image:
+  repository: doni502/todos
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Flask app configuration
+flask:
+  port: 5001
+  env:
+    UNSPLASH_ACCESS_KEY: ""
+
+# MySQL configuration
+mysql:
+  enabled: true
+  image:
+    repository: mysql
+    tag: "8.0"
+    pullPolicy: IfNotPresent
+  auth:
+    rootPassword: rootpassword
+    database: tododb
+    user: todouser
+    password: todopassword
+  storage:
+    size: 1Gi
+    storageClass: ""
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 5001
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: todo.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Resource limits
+resources: {}
+  # limits:
+  #   cpu: 200m
+  #   memory: 256Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

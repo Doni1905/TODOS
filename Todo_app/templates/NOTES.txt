@@ -1,0 +1,30 @@
+🎉 Flask Todo App deployed successfully!
+
+{{- if .Values.ingress.enabled }}
+
+Access your app at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+{{- else if contains "NodePort" .Values.service.type }}
+
+Get the app URL:
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "Todo_app.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+
+{{- else if contains "LoadBalancer" .Values.service.type }}
+
+Get the app URL (may take a minute for the LoadBalancer IP):
+  kubectl get svc --namespace {{ .Release.Namespace }} {{ include "Todo_app.fullname" . }} -w
+
+{{- else }}
+
+Port-forward to access the app:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "Todo_app.fullname" . }} 5001:{{ .Values.service.port }}
+  Then visit: http://localhost:5001
+
+{{- end }}
+
+MySQL is running as a StatefulSet with persistent storage.
