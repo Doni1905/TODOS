@@ -9,3 +9,6 @@ ArgoCD/base/mysql-secret.yaml
 node_modules/
 package.json
 package-lock.json
+pod-identity-setup/
+todo-app-0.1.0.tgz
+helm-output/
