@@ -46,10 +46,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "Todo_app.fullname" . }}-mysql-secret
                   key: mysql-database
-            {{- if .Values.flask.env.UNSPLASH_ACCESS_KEY }}
             - name: UNSPLASH_ACCESS_KEY
-              value: {{ .Values.flask.env.UNSPLASH_ACCESS_KEY | quote }}
-            {{- end }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "Todo_app.fullname" . }}-mysql-secret
+                  key: UNSPLASH_ACCESS_KEY
+                  optional: true
           livenessProbe:
             httpGet:
               path: /
