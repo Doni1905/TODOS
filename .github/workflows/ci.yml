@@ -14,7 +14,6 @@ on:
       - 'k8s/**'
       - 'ArgoCD/**'
       - 'scripts/**'
-      - '.github/**'
       - '.env'
   pull_request:
     branches:
@@ -29,7 +28,6 @@ on:
       - 'k8s/**'
       - 'ArgoCD/**'
       - 'scripts/**'
-      - '.github/**'
       - '.env'
 
 env:
@@ -88,11 +86,15 @@ jobs:
 
       - name: Update image tag in chart
         run: |
-          sed -i 's|tag: "latest"|tag: "${{ github.sha }}"|' Todo_app/values.yaml
+          sed -i 's|tag: ".*"|tag: "${{ github.sha }}"|' Todo_app/values.yaml
 
       - name: Update chart version
         run: |
-          sed -i 's|version: 0.1.0|version: 0.1.${{ github.run_number }}|' Todo_app/Chart.yaml
+          sed -i 's|^version: .*|version: 0.1.${{ github.run_number }}|' Todo_app/Chart.yaml
+          sed -i 's|^appVersion: .*|appVersion: "1.0.${{ github.run_number }}"|' Todo_app/Chart.yaml
+          echo "Chart version set to: 0.1.${{ github.run_number }}"
+          echo "App version set to: 1.0.${{ github.run_number }}"
+          cat Todo_app/Chart.yaml
 
       - name: Package Helm chart
         run: helm package ./Todo_app --destination ./helm-output
@@ -101,3 +103,12 @@ jobs:
         run: |
           helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
           helm s3 push ./helm-output/todo-app-*.tgz donee-charts --force
+
+      # ─── Trigger ArgoCD Sync ───
+      - name: Refresh ArgoCD Application
+        run: |
+          echo "New chart version 0.1.${{ github.run_number }} pushed to S3"
+          echo "ArgoCD will detect the new version and sync automatically"
+          # If you have argocd CLI access, uncomment below:
+          # argocd app get todo-app --refresh --server $ARGOCD_SERVER --auth-token $ARGOCD_TOKEN
+          # argocd app sync todo-app --server $ARGOCD_SERVER --auth-token $ARGOCD_TOKEN
