@@ -1,5 +1,4 @@
 name: CI - Build Image & Push Helm Chart to S3
-
 on:
   push:
     branches:
