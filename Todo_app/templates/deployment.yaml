@@ -47,11 +47,7 @@ spec:
                   name: {{ include "Todo_app.fullname" . }}-mysql-secret
                   key: mysql-database
             - name: UNSPLASH_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "Todo_app.fullname" . }}-mysql-secret
-                  key: UNSPLASH_ACCESS_KEY
-                  optional: true
+              value: {{ .Values.flask.env.UNSPLASH_ACCESS_KEY | default "" | quote }}
           livenessProbe:
             httpGet:
               path: /
