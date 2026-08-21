@@ -5,10 +5,32 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'docker-compose.yml'
+      - 'k8s/**'
+      - 'ArgoCD/**'
+      - 'scripts/**'
+      - '.github/**'
+      - '.env'
   pull_request:
     branches:
       - main
       - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'docker-compose.yml'
+      - 'k8s/**'
+      - 'ArgoCD/**'
+      - 'scripts/**'
+      - '.github/**'
+      - '.env'
 
 env:
   DOCKER_IMAGE: doni502/todos
