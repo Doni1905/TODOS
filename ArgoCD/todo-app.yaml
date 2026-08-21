@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: todo-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: s3://donee-s3/charts
+    chart: todo-app
+    targetRevision: "0.1.0"
+    helm:
+      values: |
+        replicaCount: 1
+        image:
+          repository: doni502/todos
+        mysql:
+          auth:
+            rootPassword: rootpassword
+            password: todopassword
+          storage:
+            storageClass: gp2
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: donee
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
