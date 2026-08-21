@@ -31,7 +31,7 @@ mysql:
     password: todopassword
   storage:
     size: 1Gi
-    storageClass: ""
+    storageClass: "gp2"
 
 # Service configuration
 service:
