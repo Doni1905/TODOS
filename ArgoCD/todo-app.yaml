@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: s3://donee-s3/charts
     chart: todo-app
-    targetRevision: "0.1.0"
+    targetRevision: "0.1.32"
     helm:
       values: |
         replicaCount: 1
