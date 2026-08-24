@@ -1,0 +1,29 @@
+# Least-privilege RBAC for the CI role to update the todo-app Application's
+# targetRevision after a release. The CI IAM role
+# (donee-github-actions-helm-s3-role) is mapped via an EKS access entry to the
+# Kubernetes group "todo-app-deployer"; this Role grants that group patch
+# rights on ONLY the todo-app Application in the argocd namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: todo-app-revision-patcher
+  namespace: argocd
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    resourceNames: ["todo-app"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: todo-app-revision-patcher
+  namespace: argocd
+subjects:
+  - kind: Group
+    name: todo-app-deployer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: todo-app-revision-patcher
+  apiGroup: rbac.authorization.k8s.io

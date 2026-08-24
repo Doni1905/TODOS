@@ -100,3 +100,19 @@ jobs:
           git commit -m "chore(release): set ArgoCD targetRevision to ${VERSION} [skip ci]"
           git push origin main
           echo "ArgoCD targetRevision pinned to ${VERSION} and pushed to main."
+
+      # ─── Apply the version to the cluster so ArgoCD picks it up automatically ───
+      # The AWS role assumed above is granted (via EKS access entry -> k8s group
+      # "todo-app-deployer" -> Role todo-app-revision-patcher in ArgoCD/ci-deployer-rbac.yaml)
+      # patch access to ONLY the todo-app Application. Without this step the
+      # git write-back alone never reaches the cluster (ArgoCD watches s3://,
+      # not git), so the Application would stay on its old targetRevision.
+      - name: Point ArgoCD at the released version
+        env:
+          VERSION: ${{ steps.chart.outputs.version }}
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --name tpc-interview-eks-cluster --region us-east-1
+          kubectl -n argocd patch application todo-app --type merge \
+            -p "{\"spec\":{\"source\":{\"targetRevision\":\"${VERSION}\"}}}"
+          echo "ArgoCD todo-app targetRevision set to ${VERSION} in the cluster."
