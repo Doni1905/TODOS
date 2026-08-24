@@ -1,8 +1,29 @@
 name: CI - Build & Push Docker Image
 on:
+  release:
+    # Publishing a Release in the GitHub UI (e.g. v0.1.4) triggers build+deploy.
+    # NOTE: tags/releases created via the UI do NOT fire "push: tags"; the
+    # release event is what fires, so we listen for it here.
+    types: [published]
   push:
+    branches:
+      # Push code to main -> auto-version, build, and (via Release) deploy.
+      - main
+    # Non-app changes (workflow files, manifests, docs, scripts) must not
+    # trigger an auto-increment build/deploy.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'docker-compose.yml'
+      - 'k8s/**'
+      - 'ArgoCD/**'
+      - 'scripts/**'
+      - '.env'
+      - '.github/**'
     tags:
-      # Release on semantic version tags, e.g. v1.2.3
+      # Manual releases via `git push origin vX.Y.Z` from your own machine.
       - 'v*.*.*'
   pull_request:
     branches:
@@ -25,28 +46,64 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment: TODOS
+    # Skip the automated write-back commit from release.yml so pushing to main
+    # from the release step doesn't cause a build/deploy loop.
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     permissions:
-      contents: read
+      contents: write   # needed to create and push the auto-increment tag
       id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so we can compute the next version.
+          fetch-depth: 0
 
-      - name: Derive version from tag
+      - name: Derive version
         id: version
         run: |
-          # On a tag push, github.ref_name is the tag (e.g. v0.1.5).
-          # Strip the leading "v" for the image/chart version. On PRs there is
-          # no tag, so fall back to the short SHA (image is not pushed on PRs).
-          REF="${{ github.ref_name }}"
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${REF#v}"
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            # Release published in the UI: use its tag name (strip leading v).
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+            IS_RELEASE=true
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # Manual tag push: use the tag name (strip leading v).
+            VERSION="${GITHUB_REF_NAME#v}"
+            IS_RELEASE=true
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            # Push to main: auto-increment the patch from the latest tag.
+            LATEST="$(git tag -l 'v*.*.*' --sort=-v:refname | head -n1)"
+            [[ -z "$LATEST" ]] && LATEST="v0.0.0"
+            VER="${LATEST#v}"
+            MAJOR="${VER%%.*}"; REST="${VER#*.}"; MINOR="${REST%%.*}"; PATCH="${REST#*.}"
+            VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            IS_RELEASE=true
           else
+            # Pull request: build for validation only, do not push/release.
             VERSION="${GITHUB_SHA::7}"
+            IS_RELEASE=false
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Derived version: $VERSION"
+          echo "is_release=$IS_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "Derived version: $VERSION (release=$IS_RELEASE)"
+
+      - name: Create and push version tag (main pushes only)
+        # On a plain push to main we tag the commit so every release has a real
+        # vX.Y.Z tag in history. Tag pushes already have their tag, and PRs are
+        # not releases, so both are skipped here.
+        if: ${{ github.event_name == 'push' && github.ref_type == 'branch' && steps.version.outputs.is_release == 'true' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${VERSION}" -m "Auto release v${VERSION} (${GITHUB_SHA::7})"
+          git push origin "v${VERSION}"
+          echo "Tagged commit as v${VERSION}"
 
       # ─── Docker Build & Push ───
       - name: Set up Docker Buildx
@@ -62,8 +119,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          # Push only on tag releases; PRs build for validation but don't push.
-          push: ${{ github.ref_type == 'tag' }}
+          # Push on releases (tag pushes and main pushes); PRs build only.
+          push: ${{ steps.version.outputs.is_release == 'true' }}
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.version }}

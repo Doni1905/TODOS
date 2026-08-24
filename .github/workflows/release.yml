@@ -13,9 +13,11 @@ jobs:
   package-and-push:
     runs-on: ubuntu-latest
     environment: TODOS
-    # Only release when CI succeeded AND it was triggered by a version tag.
-    # For tag runs, workflow_run.head_branch holds the tag name (e.g. v0.1.5).
-    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
+    # Release whenever CI succeeded. CI runs on tag pushes and on main pushes;
+    # in both cases the built commit carries a vX.Y.Z tag (manual for tag runs,
+    # auto-created by CI for main pushes). PR-triggered CI runs never reach here
+    # because they build on a different event and don't produce a release tag.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'release') }}
     permissions:
       contents: write   # needed to commit the updated targetRevision back to main
       id-token: write
@@ -24,8 +26,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Check out the exact commit the tag pointed at (same one CI built).
+          # Check out the exact commit CI built, with full history + tags so we
+          # can read the version tag that points at it.
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
 
       # ─── AWS Credentials via OIDC ───
       - name: Configure AWS Credentials
@@ -46,10 +50,15 @@ jobs:
       - name: Compute chart version
         id: chart
         run: |
-          # The version comes from the git tag that triggered CI (head_branch
-          # holds the tag name for tag runs), with the leading "v" stripped.
-          # e.g. tag v0.1.5 -> chart/image version 0.1.5
-          TAG="${{ github.event.workflow_run.head_branch }}"
+          set -euo pipefail
+          # CI tags every released commit with vX.Y.Z (manual tag runs already
+          # have one; main-push runs get an auto-created tag). Read the highest
+          # version tag pointing at the built commit and strip the leading "v".
+          TAG="$(git tag --points-at HEAD 'v*.*.*' --sort=-v:refname | head -n1)"
+          if [[ -z "$TAG" ]]; then
+            echo "ERROR: no vX.Y.Z tag on commit ${GITHUB_SHA:-HEAD}; cannot release." >&2
+            exit 1
+          fi
           VERSION="${TAG#v}"
           echo "Release tag: $TAG"
           echo "Computed chart version: $VERSION"
