@@ -17,7 +17,7 @@ jobs:
     # For tag runs, workflow_run.head_branch holds the tag name (e.g. v0.1.5).
     if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
     permissions:
-      contents: write   # needed to commit the updated targetRevision back to main
+      contents: read
       id-token: write
 
     steps:
@@ -72,31 +72,4 @@ jobs:
           # No --force: every version is unique, so we never overwrite a published chart.
           helm s3 push ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
-
-      # ─── GitOps: point ArgoCD at the version we just released ───
-      - name: Pin ArgoCD targetRevision and commit to main
-        env:
-          VERSION: ${{ steps.chart.outputs.version }}
-        run: |
-          set -euo pipefail
-          # Release runs on a detached HEAD (the tagged commit). Move to main so
-          # the targetRevision bump lands on the branch ArgoCD tracks.
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main
-
-          # Update ArgoCD to the exact version published to S3.
-          sed -i "s|^\( *targetRevision:\).*|\1 \"${VERSION}\"|" ArgoCD/todo-app.yaml
-
-          if git diff --quiet -- ArgoCD/todo-app.yaml; then
-            echo "targetRevision already ${VERSION}; nothing to commit."
-            exit 0
-          fi
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ArgoCD/todo-app.yaml
-          # [skip ci] prevents this commit from re-triggering the build pipeline.
-          git commit -m "chore(release): set ArgoCD targetRevision to ${VERSION} [skip ci]"
-          git push origin main
-          echo "ArgoCD targetRevision pinned to ${VERSION} and pushed to main."
+          echo "Update ArgoCD targetRevision in ArgoCD/todo-app.yaml to ${{ steps.chart.outputs.version }} and apply it to sync."
