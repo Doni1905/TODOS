@@ -63,6 +63,22 @@ def show_list(list_id):
     return render_template('index.html', list_id=list_id, unsplash_key=UNSPLASH_ACCESS_KEY)
 
 
+@app.route('/healthz', methods=['GET'])
+def healthz():
+    """Liveness probe - does not touch the database."""
+    return jsonify({'status': 'ok'}), 200
+
+
+@app.route('/readyz', methods=['GET'])
+def readyz():
+    """Readiness probe - performs a lightweight database check."""
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({'status': 'ready'}), 200
+    except Exception as e:
+        return jsonify({'status': 'not ready', 'error': str(e)}), 503
+
+
 @app.route('/api/<list_id>/todos', methods=['GET'])
 def get_todos(list_id):
     """Get all todos for a specific list ordered by position."""
@@ -214,7 +230,7 @@ def delete_todo(list_id, todo_id):
 
 
 def wait_for_db(retries=10, delay=3):
-    """Wait for MySQL to be ready before starting the app."""
+    """Wait for MySQL to be ready and create tables before serving traffic."""
     for attempt in range(retries):
         try:
             with app.app_context():
@@ -228,10 +244,17 @@ def wait_for_db(retries=10, delay=3):
     return False
 
 
+# Run DB readiness/create_all at import time so it also runs under gunicorn,
+# where the __main__ block is never executed. Guarded so a failure here does
+# not prevent the module from importing (readiness is still checked via /readyz).
+try:
+    wait_for_db()
+except Exception as e:
+    print(f"Database initialization at import failed: {e}")
+
+
 if __name__ == '__main__':
-    if wait_for_db():
-        app.run(host='0.0.0.0', debug=True, port=5001)
-    else:
-        print("Exiting: Database unavailable.")
-        exit(1)
+    debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() in ('1', 'true', 'yes')
+    port = int(os.environ.get('PORT', '5001'))
+    app.run(host='0.0.0.0', debug=debug_mode, port=port)
 

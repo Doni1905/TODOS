@@ -12,4 +12,4 @@ COPY templates/ templates/
 
 EXPOSE 5001
 
-CMD ["python", "app_db.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "app_db:app"]
