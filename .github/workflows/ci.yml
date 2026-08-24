@@ -85,18 +85,28 @@ jobs:
         run: |
           sed -i '0,/^  tag:/s|tag: ".*"|tag: "${{ github.sha }}"|' Todo_app/values.yaml
 
-      - name: Read chart version
+      - name: Compute chart version
         id: chart
         run: |
-          CHART_VERSION=$(grep '^version:' Todo_app/Chart.yaml | awk '{print $2}')
-          echo "Using chart version from Chart.yaml: $CHART_VERSION"
-          echo "version=$CHART_VERSION" >> $GITHUB_OUTPUT
+          # Take MAJOR.MINOR from Chart.yaml (you own these) and use the GitHub
+          # run number as the PATCH so every push produces a unique, higher,
+          # immutable version. ArgoCD's SemVer range then auto-deploys the newest.
+          BASE_VERSION=$(grep '^version:' Todo_app/Chart.yaml | awk '{print $2}' | tr -d '"')
+          MAJOR_MINOR=$(echo "$BASE_VERSION" | cut -d. -f1,2)
+          VERSION="${MAJOR_MINOR}.${{ github.run_number }}"
+          echo "Base version from Chart.yaml: $BASE_VERSION"
+          echo "Computed chart version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Package Helm chart
-        run: helm package ./Todo_app --destination ./helm-output
+        run: |
+          helm package ./Todo_app \
+            --version "${{ steps.chart.outputs.version }}" \
+            --destination ./helm-output
 
       - name: Push Helm chart to S3
         run: |
           helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
-          helm s3 push ./helm-output/todo-app-*.tgz donee-charts --force
+          # No --force: every version is unique, so we never overwrite a published chart.
+          helm s3 push ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"

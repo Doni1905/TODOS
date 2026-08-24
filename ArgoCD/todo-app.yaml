@@ -8,7 +8,9 @@ spec:
   source:
     repoURL: s3://donee-s3/charts
     chart: todo-app
-    targetRevision: "0.1.38"
+    # SemVer range: ArgoCD auto-deploys the newest chart in the 0.x line.
+    # A deliberate 1.0.0 (breaking) will NOT auto-deploy until this range is widened.
+    targetRevision: ">=0.2.0 <1.0.0"
     helm:
       values: |
         replicaCount: 1
@@ -16,8 +18,7 @@ spec:
           repository: doni502/todos
         mysql:
           auth:
-            rootPassword: rootpassword
-            password: todopassword
+            existingSecret: todo-app-mysql-secret
           storage:
             storageClass: gp2
   destination:
