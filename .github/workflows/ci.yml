@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - master
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -12,13 +11,11 @@ on:
       - 'docker-compose.yml'
       - 'k8s/**'
       - 'ArgoCD/**'
-      - 'argocd/**'
       - 'scripts/**'
       - '.env'
   pull_request:
     branches:
       - main
-      - master
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -27,7 +24,6 @@ on:
       - 'docker-compose.yml'
       - 'k8s/**'
       - 'ArgoCD/**'
-      - 'argocd/**'
       - 'scripts/**'
       - '.env'
 
@@ -40,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: TODOS
     permissions:
-      contents: write
+      contents: read
       id-token: write
 
     steps:
@@ -89,13 +85,12 @@ jobs:
         run: |
           sed -i '0,/^  tag:/s|tag: ".*"|tag: "${{ github.sha }}"|' Todo_app/values.yaml
 
-      - name: Update chart version
+      - name: Read chart version
+        id: chart
         run: |
-          sed -i 's|^version: .*|version: 0.1.${{ github.run_number }}|' Todo_app/Chart.yaml
-          sed -i 's|^appVersion: .*|appVersion: "1.0.${{ github.run_number }}"|' Todo_app/Chart.yaml
-          echo "Chart version set to: 0.1.${{ github.run_number }}"
-          echo "App version set to: 1.0.${{ github.run_number }}"
-          cat Todo_app/Chart.yaml
+          CHART_VERSION=$(grep '^version:' Todo_app/Chart.yaml | awk '{print $2}')
+          echo "Using chart version from Chart.yaml: $CHART_VERSION"
+          echo "version=$CHART_VERSION" >> $GITHUB_OUTPUT
 
       - name: Package Helm chart
         run: helm package ./Todo_app --destination ./helm-output
@@ -104,15 +99,4 @@ jobs:
         run: |
           helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
           helm s3 push ./helm-output/todo-app-*.tgz donee-charts --force
-
-      # ─── Update ArgoCD manifest in Git ───
-      - name: Update ArgoCD application version in Git
-        run: |
-          CHART_VERSION="0.1.${{ github.run_number }}"
-          sed -i "s|targetRevision: .*|targetRevision: \"$CHART_VERSION\"|" ArgoCD/todo-app.yaml
-          
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ArgoCD/todo-app.yaml
-          git diff --staged --quiet || git commit -m "chore: update chart version to $CHART_VERSION"
-          git push
+          echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
