@@ -69,8 +69,8 @@ jobs:
       - name: Push Helm chart to S3
         run: |
           helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
-          # No --force: every version is unique, so we never overwrite a published chart.
-          helm s3 push ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
+          # --force: overwrite the published chart if this version already exists in S3.
+          helm s3 push --force ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
 
       # ─── GitOps: point ArgoCD at the version we just released ───
