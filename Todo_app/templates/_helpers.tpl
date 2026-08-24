@@ -47,3 +47,15 @@ Selector labels
 app.kubernetes.io/name: {{ include "Todo_app.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Resolve the MySQL secret name.
+Uses an existing (pre-created) Secret if provided, otherwise the generated one.
+*/}}
+{{- define "Todo_app.mysqlSecretName" -}}
+{{- if .Values.mysql.auth.existingSecret -}}
+{{- .Values.mysql.auth.existingSecret -}}
+{{- else -}}
+{{- printf "%s-mysql-secret" (include "Todo_app.fullname" .) -}}
+{{- end -}}
+{{- end -}}

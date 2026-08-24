@@ -25,6 +25,10 @@ mysql:
     tag: "8.0"
     pullPolicy: IfNotPresent
   auth:
+    # If set, use this pre-created Secret instead of creating one.
+    # The referenced Secret MUST contain these keys:
+    #   mysql-root-password, mysql-user, mysql-password, mysql-database
+    existingSecret: ""
     rootPassword: CHANGE_ME
     database: tododb
     user: todouser
