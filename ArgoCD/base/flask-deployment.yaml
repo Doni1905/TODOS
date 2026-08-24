@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: flask-app
-          image: doni502/todos:1.0
+          image: doni502/todos:latest
           ports:
             - containerPort: 5001
           env:
@@ -45,3 +45,22 @@ spec:
                   name: mysql-secret
                   key: UNSPLASH_ACCESS_KEY
                   optional: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 5001
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
