@@ -8,9 +8,12 @@ spec:
   source:
     repoURL: s3://donee-s3/charts
     chart: todo-app
-    # SemVer range: ArgoCD auto-deploys the newest chart in the 0.x line.
-    # A deliberate 1.0.0 (breaking) will NOT auto-deploy until this range is widened.
-    targetRevision: ">=0.2.0 <1.0.0"
+    # Pinned exact version (required for s3:// repos — ArgoCD uses helm pull,
+    # which is helm-s3 plugin-aware, and skips the HTTP index.yaml lookup).
+    # Update this manually to the version release.yml published (0.1.<run>)
+    # after each release. Do not use a SemVer range here: range resolution
+    # needs an HTTP getter that cannot read s3://.
+    targetRevision: "0.1.0"
     helm:
       values: |
         replicaCount: 1

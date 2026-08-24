@@ -1,18 +1,9 @@
-name: CI - Build Image & Push Helm Chart to S3
+name: CI - Build & Push Docker Image
 on:
   push:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'LICENSE'
-      - 'docker-compose.yml'
-      - 'k8s/**'
-      - 'ArgoCD/**'
-      - 'scripts/**'
-      - '.env'
+    tags:
+      # Release on semantic version tags, e.g. v1.2.3
+      - 'v*.*.*'
   pull_request:
     branches:
       - main
@@ -29,7 +20,6 @@ on:
 
 env:
   DOCKER_IMAGE: doni502/todos
-  HELM_S3_BUCKET: donee-s3
 
 jobs:
   build-and-push:
@@ -42,6 +32,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          # On a tag push, github.ref_name is the tag (e.g. v0.1.5).
+          # Strip the leading "v" for the image/chart version. On PRs there is
+          # no tag, so fall back to the short SHA (image is not pushed on PRs).
+          REF="${{ github.ref_name }}"
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${REF#v}"
+          else
+            VERSION="${GITHUB_SHA::7}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Derived version: $VERSION"
 
       # ─── Docker Build & Push ───
       - name: Set up Docker Buildx
@@ -57,56 +62,12 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          # Push only on tag releases; PRs build for validation but don't push.
+          push: ${{ github.ref_type == 'tag' }}
           platforms: linux/amd64,linux/arm64
           tags: |
+            ${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.version }}
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
             ${{ env.DOCKER_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # ─── AWS Credentials via OIDC ───
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::014032199917:role/donee-github-actions-helm-s3-role
-          aws-region: us-east-1
-
-      # ─── Helm Package & Push to S3 ───
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.14.0
-
-      - name: Install Helm S3 Plugin
-        run: helm plugin install https://github.com/hypnoglow/helm-s3.git
-
-      - name: Update image tag in chart
-        run: |
-          sed -i '0,/^  tag:/s|tag: ".*"|tag: "${{ github.sha }}"|' Todo_app/values.yaml
-
-      - name: Compute chart version
-        id: chart
-        run: |
-          # Take MAJOR.MINOR from Chart.yaml (you own these) and use the GitHub
-          # run number as the PATCH so every push produces a unique, higher,
-          # immutable version. ArgoCD's SemVer range then auto-deploys the newest.
-          BASE_VERSION=$(grep '^version:' Todo_app/Chart.yaml | awk '{print $2}' | tr -d '"')
-          MAJOR_MINOR=$(echo "$BASE_VERSION" | cut -d. -f1,2)
-          VERSION="${MAJOR_MINOR}.${{ github.run_number }}"
-          echo "Base version from Chart.yaml: $BASE_VERSION"
-          echo "Computed chart version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Package Helm chart
-        run: |
-          helm package ./Todo_app \
-            --version "${{ steps.chart.outputs.version }}" \
-            --destination ./helm-output
-
-      - name: Push Helm chart to S3
-        run: |
-          helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
-          # No --force: every version is unique, so we never overwrite a published chart.
-          helm s3 push ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
-          echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
