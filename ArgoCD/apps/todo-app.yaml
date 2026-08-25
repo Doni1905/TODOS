@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: todo-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: s3://donee-s3/charts
+    chart: todo-app
+    # EXPERIMENT (semver-range approach): using a SemVer range instead of an
+    # exact pin to test whether ArgoCD can resolve ranges from an s3:// repo.
+    # Expected to FAIL: range resolution needs an HTTP/OCI index.yaml getter,
+    # which cannot read s3://. Revert to an exact version ("0.1.7") to restore
+    # working deploys.
+    targetRevision: "0.1.x"
+    helm:
+      values: |
+        replicaCount: 1
+        image:
+          repository: doni502/todos
+        mysql:
+          auth:
+            existingSecret: todo-app-mysql-secret
+          storage:
+            storageClass: gp2
+        ingress:
+          enabled: true
+          className: alb
+          annotations:
+            alb.ingress.kubernetes.io/scheme: internet-facing
+            alb.ingress.kubernetes.io/target-type: ip
+            alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+            alb.ingress.kubernetes.io/certificate-arn: 'arn:aws:acm:us-east-1:014032199917:certificate/3fa68cc2-a3f3-45d9-bacf-01e2b5d5037b'
+            alb.ingress.kubernetes.io/ssl-redirect: '443'
+            alb.ingress.kubernetes.io/healthcheck-path: /healthz
+            alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+            alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+            alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+            alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
+          hosts:
+            - host: donee.devops.tpconnects.com
+              paths:
+                - path: /
+                  pathType: Prefix
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: donee
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

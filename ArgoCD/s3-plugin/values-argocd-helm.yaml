@@ -18,6 +18,13 @@ repoServer:
       value: /helm-plugins/helm/plugins
     - name: HELM_DATA_HOME
       value: /helm-plugins/helm
+    # Writable cache/config dirs. The repo-server runs as non-root (UID 999),
+    # so the helm-s3 plugin needs a writable place to cache index.yaml when it
+    # scans versions for range resolution. Point these at /tmp.
+    - name: HELM_CACHE_HOME
+      value: /tmp/helm/cache
+    - name: HELM_CONFIG_HOME
+      value: /tmp/helm/config
 
   initContainers:
     - name: install-helm-s3-plugin
