@@ -12,10 +12,13 @@ spec:
     # readable over HTTPS (anonymous s3:GetObject) for this to work.
     repoURL: https://donee-s3.s3.us-east-1.amazonaws.com/charts
     chart: todo-app
-    # With an HTTP getter, SemVer ranges resolve again via index.yaml. The
-    # release pipeline still pins this to the exact published version, but a
-    # range would also work here now.
-    targetRevision: "2.0.4"
+    # "*" = always the highest published chart version. ArgoCD's HTTP getter
+    # reads charts/index.yaml on every reconcile and resolves this to the
+    # newest version in the repo (any major/minor/patch), then auto-syncs.
+    # The newest release always auto-deploys with no manual change here. The
+    # release pipeline only publishes charts to S3; ArgoCD is the single
+    # deployer and picks up new versions on its own.
+    targetRevision: "*"
     helm:
       values: |
         replicaCount: 1

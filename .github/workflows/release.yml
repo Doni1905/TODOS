@@ -13,32 +13,24 @@ jobs:
   package-and-push:
     runs-on: ubuntu-latest
     environment: TODOS
-    # Release whenever CI succeeded. CI runs on tag pushes and on main pushes;
-    # in both cases the built commit carries a vX.Y.Z tag (manual for tag runs,
-    # auto-created by CI for main pushes). PR-triggered CI runs never reach here
-    # because they build on a different event and don't produce a release tag.
     if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'release') }}
     permissions:
-      contents: write   # needed to commit the updated targetRevision back to main
+      contents: read
       id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          # Check out the exact commit CI built, with full history + tags so we
-          # can read the version tag that points at it.
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      # ─── AWS Credentials via OIDC ───
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::014032199917:role/donee-github-actions-helm-s3-role
           aws-region: us-east-1
 
-      # ─── Helm Package & Push to S3 ───
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
@@ -51,9 +43,6 @@ jobs:
         id: chart
         run: |
           set -euo pipefail
-          # CI tags every released commit with vX.Y.Z (manual tag runs already
-          # have one; main-push runs get an auto-created tag). Read the highest
-          # version tag pointing at the built commit and strip the leading "v".
           TAG="$(git tag --points-at HEAD 'v*.*.*' --sort=-v:refname | head -n1)"
           if [[ -z "$TAG" ]]; then
             echo "ERROR: no vX.Y.Z tag on commit ${GITHUB_SHA:-HEAD}; cannot release." >&2
@@ -66,7 +55,6 @@ jobs:
 
       - name: Update image tag in chart
         run: |
-          # Point the chart at the image published by CI for this release.
           sed -i "0,/^  tag:/s|tag: \".*\"|tag: \"${{ steps.chart.outputs.version }}\"|" Todo_app/values.yaml
 
       - name: Package Helm chart
@@ -78,72 +66,18 @@ jobs:
       - name: Push Helm chart to S3
         run: |
           helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
-          # --force: overwrite the published chart if this version already exists in S3.
           helm s3 push --force ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
 
-      # ─── Rewrite index.yaml with HTTPS chart URLs so ArgoCD can consume the
-      #     repo over plain HTTPS (no helm-s3 plugin on the repo-server).
-      #     helm s3 push writes s3:// download URLs into index.yaml; ArgoCD's
-      #     HTTP getter cannot fetch those. We regenerate the index pointing at
-      #     the HTTPS S3 endpoint and upload it over the plugin's version.
       - name: Publish HTTPS index.yaml
         env:
           HTTPS_REPO_URL: https://${{ env.HELM_S3_BUCKET }}.s3.us-east-1.amazonaws.com/charts
         run: |
           set -euo pipefail
-          # Pull the full set of packaged charts already in the bucket so the
-          # regenerated index lists every published version, not just this run.
           mkdir -p ./index-build
           aws s3 sync "s3://${{ env.HELM_S3_BUCKET }}/charts/" ./index-build/ \
             --exclude "*" --include "*.tgz"
-          # Rebuild the index with HTTPS download URLs.
           helm repo index ./index-build --url "${HTTPS_REPO_URL}"
-          # Upload the HTTPS index over the plugin-generated one.
           aws s3 cp ./index-build/index.yaml "s3://${{ env.HELM_S3_BUCKET }}/charts/index.yaml" \
             --content-type "text/yaml"
           echo "Published HTTPS index.yaml pointing at ${HTTPS_REPO_URL}"
-
-      # ─── GitOps: point ArgoCD at the version we just released ───
-      - name: Pin ArgoCD targetRevision and commit to main
-        env:
-          VERSION: ${{ steps.chart.outputs.version }}
-        run: |
-          set -euo pipefail
-          # Release runs on a detached HEAD (the tagged commit). Move to main so
-          # the targetRevision bump lands on the branch ArgoCD tracks.
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main
-
-          # Update ArgoCD to the exact version published to S3.
-          sed -i "s|^\( *targetRevision:\).*|\1 \"${VERSION}\"|" ArgoCD/todo-app.yaml
-
-          if git diff --quiet -- ArgoCD/todo-app.yaml; then
-            echo "targetRevision already ${VERSION}; nothing to commit."
-            exit 0
-          fi
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ArgoCD/todo-app.yaml
-          # [skip ci] prevents this commit from re-triggering the build pipeline.
-          git commit -m "chore(release): set ArgoCD targetRevision to ${VERSION} [skip ci]"
-          git push origin main
-          echo "ArgoCD targetRevision pinned to ${VERSION} and pushed to main."
-
-      # ─── Apply the version to the cluster so ArgoCD picks it up automatically ───
-      # The AWS role assumed above is granted (via EKS access entry -> k8s group
-      # "todo-app-deployer" -> Role todo-app-revision-patcher in ArgoCD/ci-deployer-rbac.yaml)
-      # patch access to ONLY the todo-app Application. Without this step the
-      # git write-back alone never reaches the cluster (ArgoCD watches s3://,
-      # not git), so the Application would stay on its old targetRevision.
-      - name: Point ArgoCD at the released version
-        env:
-          VERSION: ${{ steps.chart.outputs.version }}
-        run: |
-          set -euo pipefail
-          aws eks update-kubeconfig --name tpc-interview-eks-cluster --region us-east-1
-          kubectl -n argocd patch application todo-app --type merge \
-            -p "{\"spec\":{\"source\":{\"targetRevision\":\"${VERSION}\"}}}"
-          echo "ArgoCD todo-app targetRevision set to ${VERSION} in the cluster."
