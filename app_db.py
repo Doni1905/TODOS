@@ -1,4 +1,4 @@
-# Todo app entrypoint. Deployed via ArgoCD from the HTTPS S3 Helm repo.
+# Todo app entrypoint. Deployed via ArgoCD (pull-based) from the HTTPS S3 Helm repo.
 from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
 import os
