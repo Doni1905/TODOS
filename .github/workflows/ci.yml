@@ -1,10 +1,8 @@
 name: CI - Build & Push Docker Image
 on:
-  release:
-    # Publishing a Release in the GitHub UI (e.g. v0.1.4) triggers build+deploy.
-    # NOTE: tags/releases created via the UI do NOT fire "push: tags"; the
-    # release event is what fires, so we listen for it here.
-    types: [published]
+  # No separate `release:` trigger. Publishing a GitHub Release also pushes its
+  # tag, which fires the `push: tags` trigger below. Listening for both events
+  # caused CI (and thus the release workflow) to run twice per Release.
   push:
     branches:
       # Push code to main -> auto-version, build, and (via Release) deploy.
