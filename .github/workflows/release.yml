@@ -82,6 +82,28 @@ jobs:
           helm s3 push --force ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
 
+      # ─── Rewrite index.yaml with HTTPS chart URLs so ArgoCD can consume the
+      #     repo over plain HTTPS (no helm-s3 plugin on the repo-server).
+      #     helm s3 push writes s3:// download URLs into index.yaml; ArgoCD's
+      #     HTTP getter cannot fetch those. We regenerate the index pointing at
+      #     the HTTPS S3 endpoint and upload it over the plugin's version.
+      - name: Publish HTTPS index.yaml
+        env:
+          HTTPS_REPO_URL: https://${{ env.HELM_S3_BUCKET }}.s3.us-east-1.amazonaws.com/charts
+        run: |
+          set -euo pipefail
+          # Pull the full set of packaged charts already in the bucket so the
+          # regenerated index lists every published version, not just this run.
+          mkdir -p ./index-build
+          aws s3 sync "s3://${{ env.HELM_S3_BUCKET }}/charts/" ./index-build/ \
+            --exclude "*" --include "*.tgz"
+          # Rebuild the index with HTTPS download URLs.
+          helm repo index ./index-build --url "${HTTPS_REPO_URL}"
+          # Upload the HTTPS index over the plugin-generated one.
+          aws s3 cp ./index-build/index.yaml "s3://${{ env.HELM_S3_BUCKET }}/charts/index.yaml" \
+            --content-type "text/yaml"
+          echo "Published HTTPS index.yaml pointing at ${HTTPS_REPO_URL}"
+
       # ─── GitOps: point ArgoCD at the version we just released ───
       - name: Pin ArgoCD targetRevision and commit to main
         env:

@@ -1,64 +1,70 @@
-# Enabling `s3://` Helm charts in Argo CD
+# Serving the Helm chart to Argo CD over HTTPS (S3 static repo)
 
-`ArgoCD/todo-app.yaml` points at `repoURL: s3://donee-s3/charts`. Argo CD's
-`argocd-repo-server` cannot resolve `s3://` on its own, which is why you see:
+`ArgoCD/todo-app.yaml` points at:
 
-    unsupported protocol scheme "s3"
+    repoURL: https://donee-s3.s3.us-east-1.amazonaws.com/charts
 
-The repo-server needs the [`helm-s3`](https://github.com/hypnoglow/helm-s3)
-plugin (latest release: v0.17.2). Pick the install method that matches how you
-deployed Argo CD.
+Argo CD's `argocd-repo-server` reads this with its **built-in HTTP getter** —
+it fetches `charts/index.yaml`, reads each chart's download URL from the index,
+then GETs the `.tgz`. No `helm-s3` plugin, sidecar CMP, or custom repo-server
+image is required on the consume side.
 
-## 1. Install the plugin into the repo-server
+> The `helm-s3` plugin is still used by the **release pipeline** to *push*
+> charts to S3 (that side uses AWS credentials via OIDC). Only the *consume*
+> side moved to HTTPS.
 
-### If Argo CD was installed via the official Helm chart (`argo/argo-cd`)
+## Requirements for the HTTPS repo to work
 
-    helm repo add argo https://argoproj.github.io/argo-helm
-    helm upgrade --install argocd argo/argo-cd \
-      --namespace argocd \
-      -f values-argocd-helm.yaml
+1. **The `charts/` prefix must be readable over anonymous HTTPS.** Helm's HTTP
+   repo client does not sign S3 requests (no SigV4), so private objects return
+   `403`. Make the prefix public via a bucket policy:
 
-### If Argo CD was installed via raw manifests (`kubectl apply`)
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "PublicReadCharts",
+         "Effect": "Allow",
+         "Principal": "*",
+         "Action": "s3:GetObject",
+         "Resource": "arn:aws:s3:::donee-s3/charts/*"
+       }
+     ]
+   }
+   ```
 
-    kubectl patch deployment argocd-repo-server -n argocd \
-      --patch-file repo-server-patch.yaml
-    kubectl rollout status deployment/argocd-repo-server -n argocd
+2. **`index.yaml` must list HTTPS download URLs**, not `s3://`. The `helm s3
+   push` plugin writes `s3://` URLs into the index, which the HTTP getter cannot
+   fetch. The release workflow regenerates the index with HTTPS URLs after every
+   push (`helm repo index --url https://donee-s3.s3.us-east-1.amazonaws.com/charts`).
 
-## 2. Register the S3 bucket as a Helm repository
+   To rebuild the index manually:
 
-Argo CD still needs to know `donee-s3` is a Helm-type repo. Create a repo
-secret in the `argocd` namespace:
+   ```bash
+   mkdir -p /tmp/index-build
+   aws s3 sync s3://donee-s3/charts/ /tmp/index-build/ --exclude "*" --include "*.tgz"
+   helm repo index /tmp/index-build --url https://donee-s3.s3.us-east-1.amazonaws.com/charts
+   aws s3 cp /tmp/index-build/index.yaml s3://donee-s3/charts/index.yaml --content-type "text/yaml"
+   ```
 
-    apiVersion: v1
-    kind: Secret
-    metadata:
-      name: donee-s3-charts
-      namespace: argocd
-      labels:
-        argocd.argoproj.io/secret-type: repository
-    stringData:
-      name: donee-s3-charts
-      type: helm
-      url: s3://donee-s3/charts
-      enableOCI: "false"
+## Register the repo in Argo CD
 
-## 3. Give the repo-server AWS credentials
+`repo-secret.yaml` registers the HTTPS endpoint as a Helm-type repository:
 
-The plugin needs permission to read the bucket. Preferred: IRSA (attach an IAM
-role to the `argocd-repo-server` service account) with at least:
+    kubectl apply -f repo-secret.yaml
 
-    s3:GetObject, s3:ListBucket  on  arn:aws:s3:::donee-s3 and arn:aws:s3:::donee-s3/*
+## Verify
 
-Also make sure the region is set, e.g. add to the repo-server env:
+    # Index and chart tarball must both return HTTP 200 over HTTPS
+    curl -s -o /dev/null -w "index: %{http_code}\n" \
+      https://donee-s3.s3.us-east-1.amazonaws.com/charts/index.yaml
+    curl -s -o /dev/null -w "chart: %{http_code}\n" \
+      https://donee-s3.s3.us-east-1.amazonaws.com/charts/todo-app-2.0.3.tgz
 
-    - name: AWS_REGION
-      value: <your-bucket-region>
+    # The index must list HTTPS urls, not s3://
+    curl -s https://donee-s3.s3.us-east-1.amazonaws.com/charts/index.yaml | grep -A1 "urls:"
 
-## 4. Verify
-
-    # Confirm the init container installed the plugin cleanly
-    kubectl logs deployment/argocd-repo-server -n argocd -c install-helm-s3-plugin
-
-Then hit **Refresh** on the `todo-app` Application in the UI. The
-`unsupported protocol scheme "s3"` error should clear. If you now see an AWS
-credential/permission error instead, revisit step 3 (IAM/IRSA + region).
+Then hit **Refresh** on the `todo-app` Application in the UI. If you get a `403`,
+revisit the bucket policy (step 1). If the index loads but the chart pull fails,
+the index still has `s3://` URLs — rebuild it (step 2).
