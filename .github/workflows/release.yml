@@ -13,7 +13,7 @@ jobs:
   package-and-push:
     runs-on: ubuntu-latest
     environment: TODOS
-    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'release') }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     permissions:
       contents: read
       id-token: write
