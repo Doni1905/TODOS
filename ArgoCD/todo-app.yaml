@@ -15,7 +15,7 @@ spec:
     # With an HTTP getter, SemVer ranges resolve again via index.yaml. The
     # release pipeline still pins this to the exact published version, but a
     # range would also work here now.
-    targetRevision: "2.0.3"
+    targetRevision: "2.0.4"
     helm:
       values: |
         replicaCount: 1
