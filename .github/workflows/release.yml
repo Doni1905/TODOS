@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Check out the exact commit CI built, with full history + tags so we
           # can read the version tag that points at it.
@@ -40,7 +40,7 @@ jobs:
 
       # ─── Helm Package & Push to S3 ───
       - name: Install Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         with:
           version: v3.14.0
 
