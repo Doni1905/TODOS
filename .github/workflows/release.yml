@@ -82,26 +82,6 @@ jobs:
           helm s3 push --force ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
 
-      # ─── EXPERIMENT: reproduce the semver-range resolution path ───
-      # This step demonstrates the difference between how helm-s3 resolves a
-      # range on the CLI vs. how ArgoCD resolves a range for an s3:// repo.
-      # The CLI `helm` here HAS the helm-s3 plugin, so a range MAY resolve.
-      # ArgoCD's repo-server resolves Helm ranges over an HTTP/OCI index getter
-      # that cannot read s3://, which is why the Application (now set to
-      # "0.1.x") is expected to fail. `continue-on-error` keeps the release
-      # flowing so you can inspect the logs either way.
-      - name: Test semver range resolution from S3 (experiment)
-        continue-on-error: true
-        run: |
-          set -x
-          helm repo update donee-charts
-          echo "--- Exact version (the path that normally works) ---"
-          helm show chart s3://${{ env.HELM_S3_BUCKET }}/charts/todo-app \
-            --version "${{ steps.chart.outputs.version }}" || true
-          echo "--- SemVer range 0.1.x (mirrors the experimental targetRevision) ---"
-          helm show chart s3://${{ env.HELM_S3_BUCKET }}/charts/todo-app \
-            --version "0.1.x" || echo "Range resolution failed (expected for s3:// in ArgoCD)."
-
       # ─── Step 5: Update GitOps — commit targetRevision to Git (single source of truth) ───
       # Pure GitOps: we ONLY write the new version into Git. Argo CD tracks this
       # repo for the todo-app Application manifest, reads the updated
@@ -109,11 +89,6 @@ jobs:
       # Helm repo. There is no direct cluster access from CI — Git is the only
       # thing that drives the deploy.
       - name: Pin ArgoCD targetRevision and commit to main
-        # EXPERIMENT: disabled so the semver-range targetRevision ("0.1.x") set
-        # in ArgoCD/apps/todo-app.yaml is NOT overwritten by an exact pin on the
-        # next release. Restore by changing this to `if: true` (or removing the
-        # line) once you're done observing the range-resolution behavior.
-        if: false
         env:
           VERSION: ${{ steps.chart.outputs.version }}
         run: |

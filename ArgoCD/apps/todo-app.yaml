@@ -8,12 +8,17 @@ spec:
   source:
     repoURL: s3://donee-s3/charts
     chart: todo-app
-    # EXPERIMENT (semver-range approach): using a SemVer range instead of an
-    # exact pin to test whether ArgoCD can resolve ranges from an s3:// repo.
-    # Expected to FAIL: range resolution needs an HTTP/OCI index.yaml getter,
-    # which cannot read s3://. Revert to an exact version ("0.1.7") to restore
-    # working deploys.
-    targetRevision: "0.1.x"
+    # Pinned exact version (required for s3:// repos — ArgoCD uses helm pull,
+    # which is helm-s3 plugin-aware, and skips the HTTP index.yaml lookup).
+    # Update this manually to the version release.yml published (0.1.<run>)
+    # after each release. Do not use a SemVer range here: range resolution
+    # needs an HTTP getter that cannot read s3://.
+    #
+    # VERIFIED 2026-08-25: setting this to "0.1.x" produced
+    #   ComparisonError: Get "s3://donee-s3/charts/index.yaml":
+    #   unsupported protocol scheme "s3"
+    # confirming ArgoCD cannot resolve SemVer ranges for s3:// repos.
+    targetRevision: "0.1.7"
     helm:
       values: |
         replicaCount: 1
