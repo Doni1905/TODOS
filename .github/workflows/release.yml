@@ -13,32 +13,24 @@ jobs:
   package-and-push:
     runs-on: ubuntu-latest
     environment: TODOS
-    # Release whenever CI succeeded. CI runs on tag pushes and on main pushes;
-    # in both cases the built commit carries a vX.Y.Z tag (manual for tag runs,
-    # auto-created by CI for main pushes). PR-triggered CI runs never reach here
-    # because they build on a different event and don't produce a release tag.
     if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'release') }}
     permissions:
-      contents: read    # read-only: this job only publishes to S3, never commits
-      id-token: write   # required for AWS OIDC (assume the helm-s3 push role)
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          # Check out the exact commit CI built, with full history + tags so we
-          # can read the version tag that points at it.
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      # ─── AWS Credentials via OIDC ───
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::014032199917:role/donee-github-actions-helm-s3-role
           aws-region: us-east-1
 
-      # ─── Helm Package & Push to S3 ───
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
@@ -51,9 +43,6 @@ jobs:
         id: chart
         run: |
           set -euo pipefail
-          # CI tags every released commit with vX.Y.Z (manual tag runs already
-          # have one; main-push runs get an auto-created tag). Read the highest
-          # version tag pointing at the built commit and strip the leading "v".
           TAG="$(git tag --points-at HEAD 'v*.*.*' --sort=-v:refname | head -n1)"
           if [[ -z "$TAG" ]]; then
             echo "ERROR: no vX.Y.Z tag on commit ${GITHUB_SHA:-HEAD}; cannot release." >&2
@@ -66,7 +55,6 @@ jobs:
 
       - name: Update image tag in chart
         run: |
-          # Point the chart at the image published by CI for this release.
           sed -i "0,/^  tag:/s|tag: \".*\"|tag: \"${{ steps.chart.outputs.version }}\"|" Todo_app/values.yaml
 
       - name: Package Helm chart
@@ -78,36 +66,18 @@ jobs:
       - name: Push Helm chart to S3
         run: |
           helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
-          # --force: overwrite the published chart if this version already exists in S3.
           helm s3 push --force ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
 
-      # ─── Rewrite index.yaml with HTTPS chart URLs so ArgoCD can consume the
-      #     repo over plain HTTPS (no helm-s3 plugin on the repo-server).
-      #     helm s3 push writes s3:// download URLs into index.yaml; ArgoCD's
-      #     HTTP getter cannot fetch those. We regenerate the index pointing at
-      #     the HTTPS S3 endpoint and upload it over the plugin's version.
       - name: Publish HTTPS index.yaml
         env:
           HTTPS_REPO_URL: https://${{ env.HELM_S3_BUCKET }}.s3.us-east-1.amazonaws.com/charts
         run: |
           set -euo pipefail
-          # Pull the full set of packaged charts already in the bucket so the
-          # regenerated index lists every published version, not just this run.
           mkdir -p ./index-build
           aws s3 sync "s3://${{ env.HELM_S3_BUCKET }}/charts/" ./index-build/ \
             --exclude "*" --include "*.tgz"
-          # Rebuild the index with HTTPS download URLs.
           helm repo index ./index-build --url "${HTTPS_REPO_URL}"
-          # Upload the HTTPS index over the plugin-generated one.
           aws s3 cp ./index-build/index.yaml "s3://${{ env.HELM_S3_BUCKET }}/charts/index.yaml" \
             --content-type "text/yaml"
           echo "Published HTTPS index.yaml pointing at ${HTTPS_REPO_URL}"
-
-      # NOTE: This pipeline's responsibility ends at publishing the chart and
-      # its HTTPS index to S3. It intentionally does NOT write a version back
-      # to git or patch the cluster. Deployment is owned entirely by ArgoCD:
-      # the todo-app Application tracks a SemVer range (>=2.0.0 <3.0.0) and, on
-      # each reconcile, reads charts/index.yaml over HTTPS, resolves the range
-      # to the newest matching version, and auto-syncs. CI therefore needs no
-      # cluster credentials and no write access to the repo.
