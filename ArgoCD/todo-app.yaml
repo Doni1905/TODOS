@@ -39,8 +39,7 @@ spec:
             alb.ingress.kubernetes.io/healthy-threshold-count: '2'
             alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
           hosts:
-            - host: donee.devops.tpconnects.com
-              paths:
+            - paths:
                 - path: /
                   pathType: Prefix
   destination:
