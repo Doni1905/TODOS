@@ -2,10 +2,12 @@ apiVersion: v2
 name: todo-app
 description: A Helm chart for Flask Todo App with MySQL backend
 type: application
-# version = MAJOR.MINOR base you control. CI overrides PATCH with the run number
-# at package time (e.g. 0.2.<run>), so bump only MAJOR or MINOR here.
-#   MINOR bump (0.2 -> 0.3): new feature, auto-deploys via the ArgoCD range.
-#   MAJOR bump (0.x -> 1.0): breaking change, requires widening the ArgoCD range.
+# version is computed by CI from Conventional Commit messages (SemVer):
+#   fix:/chore:/docs:/...  -> patch  (0.1.7 -> 0.1.8)
+#   feat:                  -> minor  (0.1.7 -> 0.2.0)
+#   feat!: / BREAKING CHANGE -> major (0.1.7 -> 1.0.0)
+# The value below is only a placeholder; CI passes --version at package time
+# and tags the commit vX.Y.Z. You do not need to bump this by hand.
 version: 0.1.0
 appVersion: "1.0.0"
 keywords:

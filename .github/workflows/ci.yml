@@ -74,12 +74,41 @@ jobs:
             VERSION="${GITHUB_REF_NAME#v}"
             IS_RELEASE=true
           elif [[ "${{ github.event_name }}" == "push" ]]; then
-            # Push to main: auto-increment the patch from the latest tag.
+            # Push to main: SemVer bump driven by Conventional Commit messages
+            # since the last release tag.
+            #   feat!: / fix!: / any type with "!" / "BREAKING CHANGE:" -> major
+            #   feat:                                                   -> minor
+            #   everything else (fix:, chore:, docs:, ...)              -> patch
             LATEST="$(git tag -l 'v*.*.*' --sort=-v:refname | head -n1)"
             [[ -z "$LATEST" ]] && LATEST="v0.0.0"
             VER="${LATEST#v}"
             MAJOR="${VER%%.*}"; REST="${VER#*.}"; MINOR="${REST%%.*}"; PATCH="${REST#*.}"
-            VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+            # Collect commit messages (subject + body) since the last tag. If no
+            # tag exists yet, look at the whole history.
+            if [[ "$LATEST" == "v0.0.0" ]]; then
+              RANGE="HEAD"
+            else
+              RANGE="${LATEST}..HEAD"
+            fi
+            COMMITS="$(git log "$RANGE" --pretty=format:'%s%n%b' 2>/dev/null || true)"
+
+            # Decide the bump level. Default to patch.
+            BUMP="patch"
+            if echo "$COMMITS" | grep -qE '^[a-zA-Z]+(\([^)]+\))?!:' \
+               || echo "$COMMITS" | grep -qE 'BREAKING[ -]CHANGE'; then
+              BUMP="major"
+            elif echo "$COMMITS" | grep -qE '^feat(\([^)]+\))?:'; then
+              BUMP="minor"
+            fi
+
+            case "$BUMP" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            echo "SemVer bump: $BUMP (from $LATEST -> v$VERSION)"
             IS_RELEASE=true
           else
             # Pull request: build for validation only, do not push/release.
