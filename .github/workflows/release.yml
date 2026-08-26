@@ -69,15 +69,4 @@ jobs:
           helm s3 push --force ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
           echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
 
-      - name: Publish HTTPS index.yaml
-        env:
-          HTTPS_REPO_URL: https://${{ env.HELM_S3_BUCKET }}.s3.us-east-1.amazonaws.com/charts
-        run: |
-          set -euo pipefail
-          mkdir -p ./index-build
-          aws s3 sync "s3://${{ env.HELM_S3_BUCKET }}/charts/" ./index-build/ \
-            --exclude "*" --include "*.tgz"
-          helm repo index ./index-build --url "${HTTPS_REPO_URL}"
-          aws s3 cp ./index-build/index.yaml "s3://${{ env.HELM_S3_BUCKET }}/charts/index.yaml" \
-            --content-type "text/yaml"
-          echo "Published HTTPS index.yaml pointing at ${HTTPS_REPO_URL}"
+      
