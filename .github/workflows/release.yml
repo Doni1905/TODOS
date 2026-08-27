@@ -36,8 +36,7 @@ jobs:
         with:
           version: v3.14.0
 
-      - name: Install Helm S3 Plugin
-        run: helm plugin install https://github.com/hypnoglow/helm-s3.git
+      # No helm-s3 plugin needed — we push directly to S3 over HTTP
 
       - name: Compute chart version
         id: chart
@@ -63,10 +62,22 @@ jobs:
             --version "${{ steps.chart.outputs.version }}" \
             --destination ./helm-output
 
-      - name: Push Helm chart to S3
+      - name: Push Helm chart to S3 (HTTP-compatible)
         run: |
-          helm repo add donee-charts s3://${{ env.HELM_S3_BUCKET }}/charts
-          helm s3 push --force ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz donee-charts
-          echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3"
+          # Upload the .tgz
+          aws s3 cp ./helm-output/todo-app-${{ steps.chart.outputs.version }}.tgz \
+            s3://${{ env.HELM_S3_BUCKET }}/charts/todo-app-${{ steps.chart.outputs.version }}.tgz
+
+          # Download all existing .tgz files to regenerate index
+          mkdir -p ./s3-charts
+          aws s3 cp s3://${{ env.HELM_S3_BUCKET }}/charts/ ./s3-charts/ --recursive --exclude "*" --include "*.tgz"
+
+          # Regenerate index.yaml with HTTPS URLs
+          helm repo index ./s3-charts --url https://${{ env.HELM_S3_BUCKET }}.s3.us-east-1.amazonaws.com/charts
+
+          # Upload the new index.yaml
+          aws s3 cp ./s3-charts/index.yaml s3://${{ env.HELM_S3_BUCKET }}/charts/index.yaml
+
+          echo "Pushed chart version ${{ steps.chart.outputs.version }} to S3 (HTTP)"
 
       

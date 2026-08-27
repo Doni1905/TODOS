@@ -6,14 +6,11 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: s3://donee-s3/charts
+    # Use the S3 HTTP endpoint directly — no helm-s3 plugin needed.
+    # Format: https://<bucket>.s3.<region>.amazonaws.com/charts
+    repoURL: https://donee-s3.s3.us-east-1.amazonaws.com/charts
     chart: todo-app
-    # Pinned exact version (required for s3:// repos — ArgoCD uses helm pull,
-    # which is helm-s3 plugin-aware, and skips the HTTP index.yaml lookup).
-    # Update this manually to the version release.yml published (0.1.<run>)
-    # after each release. Do not use a SemVer range here: range resolution
-    # needs an HTTP getter that cannot read s3://.
-    targetRevision: "0.1.2"
+    targetRevision: "*"
     helm:
       values: |
         replicaCount: 1
