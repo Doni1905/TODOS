@@ -17,6 +17,13 @@ flask:
   env:
     UNSPLASH_ACCESS_KEY: ""
 
+# Unsplash API secret configuration
+unsplash:
+  # If set, use this pre-created Secret (must contain key: unsplash-access-key)
+  existingSecret: ""
+  # Only used if existingSecret is empty (chart creates a Secret from this value)
+  accessKey: ""
+
 # MySQL configuration
 mysql:
   enabled: true

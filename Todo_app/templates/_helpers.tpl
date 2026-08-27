@@ -59,3 +59,16 @@ Uses an existing (pre-created) Secret if provided, otherwise the generated one.
 {{- printf "%s-mysql-secret" (include "Todo_app.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+
+{{/*
+Resolve the Unsplash secret name.
+Uses an existing (pre-created) Secret if provided, otherwise the generated one.
+*/}}
+{{- define "Todo_app.unsplashSecretName" -}}
+{{- if .Values.unsplash.existingSecret -}}
+{{- .Values.unsplash.existingSecret -}}
+{{- else -}}
+{{- printf "%s-unsplash" (include "Todo_app.fullname" .) -}}
+{{- end -}}
+{{- end -}}

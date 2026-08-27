@@ -46,8 +46,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "Todo_app.mysqlSecretName" . }}
                   key: mysql-database
+            {{- if or .Values.unsplash.existingSecret .Values.unsplash.accessKey }}
             - name: UNSPLASH_ACCESS_KEY
-              value: {{ .Values.flask.env.UNSPLASH_ACCESS_KEY | default "" | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "Todo_app.unsplashSecretName" . }}
+                  key: unsplash-access-key
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
