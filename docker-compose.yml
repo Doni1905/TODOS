@@ -11,6 +11,8 @@ services:
       - MYSQL_USER=todouser
       - MYSQL_PASSWORD=todopassword
       - MYSQL_DATABASE=tododb
+      - FLASK_ENV=development
+      - SECRET_KEY=local-dev-secret-key-12345
       - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY:-}
     depends_on:
       mysql_db:
