@@ -1,0 +1,57 @@
+{#
+  Shared confetti micro-interaction (ported from the project/ reference design).
+
+  Exposes a single global: window.confettiBurst(x, y) which fires a short,
+  warm-palette confetti burst centered at the given viewport coordinates.
+  Pure DOM + Web Animations API — no libraries. Honours prefers-reduced-motion
+  (becomes a no-op when the user has requested reduced motion).
+
+  Usage: {% include "_confetti.html" %} near the end of <body>, then call
+  window.confettiBurst(clientX, clientY) when a task is marked complete.
+#}
+<style>
+  .confetti-piece {
+    position: fixed;
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 3000;
+    will-change: transform, opacity;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .confetti-piece { display: none !important; }
+  }
+</style>
+<script>
+  (function () {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.confettiBurst = function (x, y) {
+      if (reduce) return;   // respect the user's motion preference
+      var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      var colors = [accent || '#4A8CFF', '#E8A33D', '#6B9E7A', '#4A7CBF', '#B84A3E', '#EACFA5'];
+      var N = 26;
+      for (var i = 0; i < N; i++) {
+        var el = document.createElement('div');
+        el.className = 'confetti-piece';
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        el.style.background = colors[i % colors.length];
+        el.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
+        document.body.appendChild(el);
+        var angle = (Math.PI * 2 * i) / N + Math.random() * 0.5;
+        var speed = 120 + Math.random() * 180;
+        var vx = Math.cos(angle) * speed;
+        var vy = Math.sin(angle) * speed - 80;
+        var rotEnd = (Math.random() - 0.5) * 720;
+        el.animate([
+          { transform: 'translate(0,0) rotate(0deg)', opacity: 1 },
+          { transform: 'translate(' + vx + 'px,' + (vy + 200) + 'px) rotate(' + rotEnd + 'deg)', opacity: 0 }
+        ], {
+          duration: 900 + Math.random() * 400,
+          easing: 'cubic-bezier(.15,.6,.35,1)',
+          fill: 'forwards'
+        }).onfinish = (function (node) { return function () { node.remove(); }; })(el);
+      }
+    };
+  })();
+</script>
