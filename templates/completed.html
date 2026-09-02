@@ -1,0 +1,142 @@
+{% extends "_layout.html" %}
+{% block title %}Completed - Todos{% endblock %}
+
+{% block extra_css %}
+    .cg-group { margin-bottom: 22px; }
+    .cg-head { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+    .cg-head .cg-name { font-size: 0.95rem; font-weight: 700; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+    .cg-head .cg-line { flex: 1; height: 1px; background: var(--border); }
+    .cg-head .cg-count { font-size: 0.76rem; color: var(--ink-faint); font-weight: 600; }
+    .cg-list { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-md); overflow: hidden; }
+    .cg-row { display: flex; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--border); }
+    .cg-row:last-child { border-bottom: none; }
+    .cg-row:hover { background: var(--surface-2); }
+    .cg-check { width: 22px; height: 22px; min-width: 22px; border-radius: 50%; background: var(--success); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; }
+    .cg-title { flex: 1; min-width: 0; font-size: 0.92rem; color: var(--ink-faint); text-decoration: line-through; word-break: break-word; }
+    .cg-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 20px; background: var(--surface-2); color: var(--ink-soft); white-space: nowrap; }
+    .cg-restore { background: transparent; border: 1px solid transparent; color: var(--ink-soft); font-size: 0.76rem; font-weight: 600; padding: 5px 11px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: background .16s, color .16s; white-space: nowrap; }
+    .cg-restore:hover { background: var(--accent-soft); color: var(--accent); }
+    .cg-restore:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div class="page-title">Completed Tasks</div>
+        <div class="page-subtitle" id="cgSub">Everything you've finished, in one place</div>
+    </div>
+    <a class="btn-back" href="/list/{{ list_id }}"><i class="bi bi-check2-square"></i> Go to Board</a>
+</div>
+
+<!-- Completed KPIs -->
+<div class="stat-grid" id="cgStats" style="display:none;">
+    <div class="glass stat-card">
+        <div class="stat-top"><div class="stat-icon ic-green"><i class="bi bi-check2-all"></i></div></div>
+        <div class="stat-value" id="cgTotal">0</div>
+        <div class="stat-label">Tasks finished</div>
+    </div>
+    <div class="glass stat-card">
+        <div class="stat-top"><div class="stat-icon ic-blue"><i class="bi bi-list-task"></i></div></div>
+        <div class="stat-value" id="cgRate">0%</div>
+        <div class="stat-label">Completion rate</div>
+    </div>
+</div>
+
+<div id="cgBody">
+    <div class="glass"><div class="empty"><span class="empty-ic"><i class="bi bi-hourglass"></i></span><div class="empty-title">Loading…</div></div></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+    const CG_LIST_ID = '{{ list_id }}';
+    const CG_API = `/api/${CG_LIST_ID}`;
+    const CG_LABELS = { today: 'Today', this_week: 'This week', eventually: 'Eventually' };
+    const CG_ORDER = ['today', 'this_week', 'eventually'];
+    let CG_TODOS = [];
+
+    function cgEsc(t){ const d=document.createElement('div'); d.textContent=(t==null?'':t); return d.innerHTML; }
+
+    async function cgLoad(){
+        try {
+            const r = await fetch(`${CG_API}/todos`);
+            if (!r.ok) throw 0;
+            CG_TODOS = await r.json();
+            cgRender();
+        } catch (e) {
+            document.getElementById('cgBody').innerHTML =
+                '<div class="glass"><div class="empty"><span class="empty-ic"><i class="bi bi-wifi-off"></i></span>'
+                + '<div class="empty-title">Couldn\'t load your tasks</div>'
+                + '<div class="empty-sub">Please refresh and try again.</div></div></div>';
+        }
+    }
+
+    function cgRender(){
+        const done = CG_TODOS.filter(t => t.completed);
+        const total = CG_TODOS.length;
+        const rate = total ? Math.round(done.length / total * 100) : 0;
+
+        // KPIs
+        const stats = document.getElementById('cgStats');
+        document.getElementById('cgSub').textContent =
+            done.length ? `${done.length} task${done.length !== 1 ? 's' : ''} finished · Nice work.`
+                        : "Everything you've finished, in one place";
+
+        if (!done.length) {
+            stats.style.display = 'none';
+            document.getElementById('cgBody').innerHTML =
+                '<div class="glass"><div class="empty">'
+                + '<span class="empty-ic"><i class="bi bi-clipboard-check"></i></span>'
+                + '<div class="empty-title">No completed tasks yet</div>'
+                + '<div class="empty-sub">Finished tasks land here so you can look back on what you\'ve accomplished. Check one off to get started.</div>'
+                + '<a class="btn-back" href="/list/' + CG_LIST_ID + '"><i class="bi bi-check2-square"></i> Go to Board</a>'
+                + '</div></div>';
+            return;
+        }
+
+        stats.style.display = '';
+        document.getElementById('cgTotal').textContent = done.length;
+        document.getElementById('cgRate').textContent = rate + '%';
+
+        // Group completed tasks by their bucket, in a stable order.
+        const groups = {};
+        done.forEach(t => { (groups[t.category] = groups[t.category] || []).push(t); });
+
+        let html = '';
+        CG_ORDER.forEach(cat => {
+            const items = groups[cat];
+            if (!items || !items.length) return;
+            html += '<div class="cg-group"><div class="cg-head">'
+                + '<span class="cg-name"><i class="bi bi-check-circle-fill" style="color:var(--success);"></i>' + CG_LABELS[cat] + '</span>'
+                + '<span class="cg-line"></span>'
+                + '<span class="cg-count">' + items.length + ' completed</span></div>'
+                + '<div class="cg-list">'
+                + items.map(t =>
+                    '<div class="cg-row" data-id="' + t.id + '">'
+                    + '<span class="cg-check"><i class="bi bi-check-lg"></i></span>'
+                    + '<span class="cg-title">' + cgEsc(t.title) + '</span>'
+                    + '<span class="cg-badge">' + CG_LABELS[t.category] + '</span>'
+                    + '<button type="button" class="cg-restore" onclick="cgRestore(' + t.id + ')">'
+                    + '<i class="bi bi-arrow-counterclockwise"></i>Restore</button>'
+                    + '</div>'
+                ).join('')
+                + '</div></div>';
+        });
+        document.getElementById('cgBody').innerHTML = html;
+    }
+
+    async function cgRestore(id){
+        try {
+            const r = await fetch(`${CG_API}/todo/${id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed: false })
+            });
+            if (!r.ok) throw 0;
+            await cgLoad();
+            if (typeof loadNotifs === 'function') loadNotifs();
+        } catch (e) {
+            alert('Could not restore the task. Please try again.');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', cgLoad);
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends "_layout.html" %}
+{% block title %}Overview - Todos{% endblock %}
+
+{% block extra_css %}
+    .ov-hero { display: grid; grid-template-columns: 168px 1fr; gap: 28px; align-items: center; padding: 26px 28px; margin-bottom: 22px; }
+    .ov-hero .ring-wrap { position: relative; width: 168px; height: 168px; }
+    /* Make the SVG fill the wrap so the ring and the centered text share the
+       same 168px box (the global .progress-ring is 140px, which would offset
+       the absolutely-centered label into the ring arc). */
+    .ov-hero .ring-wrap .progress-ring { width: 100%; height: 100%; display: block; }
+    .ov-hero .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .ov-hero .ring-pct { font-size: 2rem; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; line-height: 1; }
+    .ov-hero .ring-cap { font-size: 0.68rem; color: var(--ink-faint); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .ov-hero .hero-copy .hc-eyebrow { font-size: 0.78rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+    .ov-hero .hero-copy .hc-head { font-size: 1.5rem; font-weight: 700; color: var(--ink); margin: 6px 0 8px; }
+    .ov-hero .hero-copy .hc-sub { font-size: 0.9rem; color: var(--ink-soft); line-height: 1.55; max-width: 460px; }
+    .ov-hero .ring-fg { transition: stroke-dashoffset 0.9s cubic-bezier(0.4,0,0.2,1); }
+    @media (max-width: 620px) {
+        .ov-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 20px; }
+        .ov-hero .hero-copy .hc-sub { margin-inline: auto; }
+    }
+
+    /* Two-column: category breakdown + recent activity (project/ reference) */
+    .ov-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 820px) { .ov-cols { grid-template-columns: 1fr; } }
+    .act-list { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
+    .act-row { display: flex; gap: 12px; align-items: flex-start; }
+    .act-ic { width: 30px; height: 30px; border-radius: 9px; background: var(--success-soft); color: var(--success); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.85rem; }
+    .act-body { flex: 1; min-width: 0; }
+    .act-title { font-size: 0.86rem; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .act-title strong { color: var(--ink); font-weight: 600; }
+    .act-meta { font-size: 0.72rem; color: var(--ink-faint); margin-top: 2px; }
+    .act-empty { font-size: 0.82rem; color: var(--ink-faint); padding: 14px 4px; }
+{% endblock %}
+
+{% block content %}
+{% set has_tasks = stats.total > 0 %}
+<div class="page-header">
+    <div>
+        <div class="page-title">Overview</div>
+        <div class="page-subtitle" id="ovGreeting">A snapshot of everything on your plate</div>
+    </div>
+    <a class="btn-back" href="/list/{{ list_id }}"><i class="bi bi-check2-square"></i> Manage Tasks</a>
+</div>
+
+{% if has_tasks %}
+<!-- Hero: completion rate ring + contextual summary -->
+<div class="glass ov-hero">
+    <div class="ring-wrap" role="img" aria-label="Completion rate {{ stats.completion_rate }} percent">
+        <svg class="progress-ring" viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--track)" stroke-width="12"/>
+            <circle class="ring-fg" cx="60" cy="60" r="52" fill="none" stroke="url(#ovGrad)" stroke-width="12"
+                stroke-linecap="round" stroke-dasharray="326.7"
+                stroke-dashoffset="{{ 326.7 - (326.7 * stats.completion_rate / 100) }}"
+                transform="rotate(-90 60 60)"/>
+            <defs><linearGradient id="ovGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+        </svg>
+        <div class="ring-center">
+            <div class="ring-pct">{{ stats.completion_rate }}%</div>
+            <div class="ring-cap">Complete</div>
+        </div>
+    </div>
+    <div class="hero-copy">
+        <div class="hc-eyebrow">Welcome back</div>
+        <div class="hc-head" id="ovHeroName">{{ display_name }}</div>
+        <div class="hc-sub">
+            {% if stats.pending == 0 %}
+                Every task is done. Enjoy the clear board and add something new when you're ready.
+            {% elif stats.completion_rate >= 60 %}
+                Strong progress — you've completed {{ stats.completed }} of {{ stats.total }} tasks. Just {{ stats.pending }} to go.
+            {% else %}
+                You have {{ stats.pending }} task{{ '' if stats.pending == 1 else 's' }} still open out of {{ stats.total }}. Pick one and keep the momentum going.
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Key metrics -->
+<div class="stat-grid">
+    <div class="glass stat-card">
+        <div class="stat-top">
+            <div class="stat-icon ic-blue"><i class="bi bi-list-task"></i></div>
+        </div>
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">Total tasks</div>
+    </div>
+    <div class="glass stat-card">
+        <div class="stat-top">
+            <div class="stat-icon ic-green"><i class="bi bi-check-circle-fill"></i></div>
+            {% if stats.total %}<span class="chip chip-up"><i class="bi bi-check2"></i>{{ stats.completion_rate }}%</span>{% endif %}
+        </div>
+        <div class="stat-value">{{ stats.completed }}</div>
+        <div class="stat-label">Completed</div>
+    </div>
+    <div class="glass stat-card">
+        <div class="stat-top">
+            <div class="stat-icon ic-orange"><i class="bi bi-hourglass-split"></i></div>
+            {% if stats.pending %}<span class="chip chip-warn"><i class="bi bi-clock"></i>Open</span>{% endif %}
+        </div>
+        <div class="stat-value">{{ stats.pending }}</div>
+        <div class="stat-label">Pending</div>
+    </div>
+    <div class="glass stat-card">
+        <div class="stat-top">
+            <div class="stat-icon ic-purple"><i class="bi bi-graph-up-arrow"></i></div>
+        </div>
+        <div class="stat-value">{{ stats.completion_rate }}%</div>
+        <div class="stat-label">Completion rate</div>
+    </div>
+</div>
+
+<!-- Category breakdown + recent activity -->
+<div class="ov-cols">
+    <div class="glass" style="padding: 24px;">
+        <div class="section-head">
+            <h5><i class="bi bi-bar-chart-line-fill" style="color:var(--accent);"></i>Tasks by category</h5>
+            <span class="sh-hint">Completed vs. total</span>
+        </div>
+        {% for cat, label in [('today','Today'),('this_week','This week'),('eventually','Eventually')] %}
+        {% set c = stats.by_category[cat] %}
+        {% set pct = (c.completed / c.total * 100) if c.total else 0 %}
+        <div class="bar-row">
+            <div class="bar-label">{{ label }}</div>
+            <div class="bar-track" role="progressbar" aria-label="{{ label }} progress"
+                 aria-valuenow="{{ pct|round|int }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="bar-fill" style="width: {{ pct }}%;"></div>
+            </div>
+            <div class="bar-val">{{ c.completed }}/{{ c.total }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="glass" style="padding: 24px;">
+        <div class="section-head">
+            <h5><i class="bi bi-clock-history" style="color:var(--accent);"></i>Recent activity</h5>
+            <span class="sh-hint">What you've finished</span>
+        </div>
+        <div class="act-list" id="ovActivity">
+            <div class="act-empty">Loading…</div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Empty state: no tasks yet -->
+<div class="glass">
+    <div class="empty">
+        <span class="empty-ic"><i class="bi bi-clipboard-plus"></i></span>
+        <div class="empty-title">No tasks yet</div>
+        <div class="empty-sub">Your overview lights up once you start adding tasks. Create your first one to begin tracking progress.</div>
+        <a class="btn-back" href="/list/{{ list_id }}"><i class="bi bi-plus-lg"></i> Create your first task</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+    // Personalize the subtitle greeting with the time of day.
+    (function () {
+        var h = new Date().getHours();
+        var g = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+        var el = document.getElementById('ovGreeting');
+        var name = {{ (display_name or 'there')|tojson }};
+        if (el) el.textContent = g + ', ' + name + " — here's where things stand";
+    })();
+
+    {% if stats.total > 0 %}
+    // Recent activity — most recently completed tasks (from real data).
+    (function () {
+        var mount = document.getElementById('ovActivity');
+        if (!mount) return;
+
+        function ovEsc(t){ var d=document.createElement('div'); d.textContent=(t==null?'':t); return d.innerHTML; }
+        function dueLabel(iso){
+            if(!iso) return '';
+            var d = new Date(iso + 'T00:00:00');
+            var today = new Date(); today.setHours(0,0,0,0);
+            var diff = Math.round((d - today) / 86400000);
+            if (diff === 0) return 'Due today';
+            if (diff === 1) return 'Due tomorrow';
+            if (diff === -1) return 'Was due yesterday';
+            if (diff < 0) return 'Was due ' + (-diff) + 'd ago';
+            return 'Due ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        fetch(`/api/{{ list_id }}/todos`)
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(function (todos) {
+                // Newest first (highest id ≈ most recently created/updated).
+                var done = todos.filter(function (t) { return t.completed; })
+                                .sort(function (a, b) { return b.id - a.id; })
+                                .slice(0, 6);
+                if (!done.length) { mount.innerHTML = '<div class="act-empty">Nothing completed yet. Check a task off to see it here.</div>'; return; }
+                mount.innerHTML = done.map(function (t) {
+                    var meta = dueLabel(t.due_date);
+                    return '<div class="act-row"><div class="act-ic"><i class="bi bi-check-lg"></i></div>'
+                        + '<div class="act-body"><div class="act-title">Completed <strong>' + ovEsc(t.title) + '</strong></div>'
+                        + (meta ? '<div class="act-meta">' + meta + '</div>' : '') + '</div></div>';
+                }).join('');
+            })
+            .catch(function () { mount.innerHTML = '<div class="act-empty">Couldn\'t load recent activity.</div>'; });
+    })();
+    {% endif %}
+{% endblock %}

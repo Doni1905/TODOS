@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Todos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root, html[data-theme="light"] {
+            --accent: #4A8CFF; --accent-hover: #3b6de0;
+            --bg: #eef0f4; --surface: #ffffff; --surface-2: #f7f8fa; --accent-soft: rgba(74,140,255,0.10);
+            --ink: #1f2233; --ink-soft: #6b7280; --ink-faint: #9aa0ad; --border: #e5e7eb;
+        }
+        html[data-theme="dark"] {
+            --accent: #6C8CFF; --accent-hover: #5a7bef; --accent-soft: rgba(108,140,255,0.16);
+            --bg: #0f1117; --surface: #171a22; --surface-2: #1e222c;
+            --ink: #eef0f4; --ink-soft: #a7adba; --ink-faint: #6b7280; --border: #2a2f3a;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { background: var(--bg); }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--ink); min-height: 100vh; }
+
+        .shell { display: flex; min-height: 100vh; }
+
+        /* Sidebar removed — navigation lives in the fluid menu. */
+
+        /* Phone: hide the topbar search to reclaim room. */
+        @media (max-width: 768px) {
+            .topbar { padding: 14px 16px; gap: 12px; }
+            .search { display:none; }          /* reclaim width on phones */
+            .clock { margin-left:auto; padding-right:12px; }
+            .tb-icon { width: 40px; height: 40px; }
+            .content { padding: 16px; }
+        }
+        @media (max-width: 480px) {
+            .week-strip { grid-template-columns: repeat(2, 1fr); }
+            .wday { min-height: 96px; }
+            .content { padding: 12px; }
+            .greet { font-size: 1.25rem; }
+            .notif-dd { width: calc(100vw - 32px); right: -8px; }
+        }
+
+        /* ── Main wrap ── */
+        .main-wrap { flex:1; min-width:0; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+
+        /* Top bar (reference layout: big search + clock + circle icons) */
+        .topbar { display:flex; align-items:center; gap:24px; padding:10px 30px; border-bottom:1px solid var(--border); background:var(--surface); }
+        .search { flex:1; display:flex; align-items:center; gap:12px; background:var(--surface-2); border:1px solid var(--border);
+            border-radius:30px; padding:9px 20px; }
+        .search input { flex:1; border:none; background:transparent; outline:none; color:var(--ink); font-size:0.9rem; }
+        .search input::placeholder { color:var(--ink-faint); }
+        .search i { color:var(--ink-faint); font-size:1.05rem; }
+        .clock { text-align:center; white-space:nowrap; padding-right:22px; border-right:1px solid var(--border); }
+        .clock .t { font-size:1.25rem; font-weight:700; letter-spacing:0.5px; }
+        .clock .d { font-size:0.72rem; color:var(--ink-faint); margin-top:2px; }
+        .tb-actions { display:flex; align-items:center; gap:12px; }
+        .tb-icon { width:40px; height:40px; border-radius:12px; border:1px solid var(--border); background:var(--surface);
+            color:var(--ink-soft); display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; font-size:1.15rem; transition:background .16s,color .16s,border-color .16s; }
+        .tb-icon:hover { color:var(--ink); background:var(--surface-2); }
+        .tb-icon:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+        .tb-icon.open { color:var(--accent); border-color:var(--accent); background:var(--accent-soft, var(--surface-2)); }
+        .tb-dot { position:absolute; top:10px; right:11px; width:8px; height:8px; border-radius:50%; background:#e74c3c; border:2px solid var(--surface); }
+        .tb-badge { position:absolute; top:-4px; right:-4px; min-width:17px; height:17px; padding:0 4px; border-radius:9px;
+            background:#e5484d; color:#fff; font-size:0.62rem; font-weight:700; line-height:1; display:flex; align-items:center; justify-content:center; border:2px solid var(--surface); }
+        .notif-wrap { position:relative; }
+        .notif-dd { position:absolute; top:52px; right:0; width:300px; background:var(--surface); border:1px solid var(--border);
+            border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.16); padding:8px; display:none; z-index:200; }
+        .notif-dd.open { display:block; }
+        .notif-dd h6 { font-size:0.8rem; font-weight:700; padding:8px 10px 6px; margin:0; }
+        .notif-head { display:flex; align-items:center; justify-content:space-between; padding-right:4px; }
+        .notif-clear { background:none; border:none; color:var(--accent); font-size:0.72rem; font-weight:600; cursor:pointer; padding:6px 8px; border-radius:8px; transition:background .16s; }
+        .notif-clear:hover { background:rgba(74,140,255,0.12); }
+        .notif-clear:disabled { color:var(--ink-faint,#9aa0ad); cursor:default; background:none; }
+        .notif-item { display:flex; align-items:flex-start; gap:10px; padding:10px; border-radius:10px; cursor:pointer; }
+        .notif-item:hover { background:var(--surface-2); }
+        .notif-item .ni-title { font-size:0.83rem; }
+        .notif-dismiss { margin-left:auto; background:none; border:none; color:#9aa0ad; font-size:1rem; line-height:1; cursor:pointer; padding:2px 6px; border-radius:6px; align-self:center; transition:background .16s,color .16s; }
+        .notif-dismiss:hover { color:#d64545; background:#fdecec; }
+        .notif-tag { font-size:0.64rem; font-weight:700; padding:2px 7px; border-radius:8px; margin-top:3px; display:inline-block; }
+        .nt-over { background:#fdecec; color:#d64545; } .nt-today { background:#fff4e5; color:#b8730a; }
+        html[data-theme="dark"] .nt-over{background:rgba(214,69,69,.2);} html[data-theme="dark"] .nt-today{background:rgba(245,166,35,.2);}
+        .notif-empty { padding:22px 12px; text-align:center; color:var(--ink-faint); font-size:0.82rem; }
+
+        /* Content */
+        .content { flex:1; display:grid; grid-template-columns:1fr 340px; gap:22px; padding:24px 28px; overflow-y:auto; }
+        @media (max-width:1050px){ .content{ grid-template-columns:1fr; } }
+
+        .greet { font-size:1.5rem; font-weight:700; margin-bottom:2px; }
+        .greet-sub { font-size:0.85rem; color:var(--ink-soft); margin-bottom:20px; }
+
+        .bucket-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:22px; }
+        @media (max-width:640px){ .bucket-cards{ grid-template-columns:1fr; } }
+        .bcard { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+        .bcard .bh { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+        .bcard .bname { font-size:0.9rem; font-weight:600; }
+        .bcard .bcount { margin-left:auto; font-size:1.3rem; font-weight:700; }
+        .bcard .btrack { height:6px; background:var(--surface-2); border-radius:4px; overflow:hidden; }
+        .bcard .bfill { height:100%; border-radius:4px; background:var(--accent); transition:width .5s ease; }
+        .bcard .bmeta { font-size:0.72rem; color:var(--ink-faint); margin-top:8px; }
+
+        .panel-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+        .pc-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+        .pc-head h5 { font-size:1rem; font-weight:600; }
+        .week-strip { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+        @media (max-width:760px){ .week-strip{ grid-template-columns:repeat(3,1fr); } }
+        .wday { min-height:130px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:8px; display:flex; flex-direction:column; gap:6px; }
+        .wday.today { border-color:var(--accent); background:rgba(74,140,255,0.08); }
+        .wlabel { text-align:center; font-size:0.68rem; color:var(--ink-faint); margin-bottom:2px; }
+        .wlabel .dn { display:block; font-size:0.95rem; font-weight:700; color:var(--ink); }
+        .wchip { font-size:0.72rem; background:var(--accent); color:#fff; border-radius:8px; padding:4px 7px; word-break:break-word; line-height:1.25; }
+        .wchip.done { background:#34a853; text-decoration:line-through; opacity:0.85; }
+        .wchip.over { background:#e74c3c; }
+
+        /* Right panel */
+        .today-panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.04); align-self:start; }
+        .tp-head { display:flex; align-items:center; justify-content:space-between; }
+        .tp-head h5 { font-size:1.05rem; font-weight:700; }
+        .tp-new { background:var(--accent); border:none; color:#fff; font-size:0.74rem; font-weight:600; padding:6px 12px; border-radius:20px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+        .tp-new:hover { background:var(--accent-hover); }
+        .tp-date { font-size:0.74rem; color:var(--ink-faint); margin:4px 0 14px; }
+        .tp-add { display:none; margin-bottom:12px; }
+        .tp-add.active { display:block; }
+        .tp-add input { width:100%; border:1px solid var(--border); border-radius:10px; padding:9px 12px; background:var(--surface-2); color:var(--ink); font-size:0.85rem; outline:none; }
+        .tp-tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+        .tp-tab { font-size:0.74rem; padding:5px 11px; border-radius:20px; cursor:pointer; color:var(--ink-soft); }
+        .tp-tab:hover { color:var(--ink); }
+        .tp-tab.active { background:rgba(74,140,255,0.12); color:var(--accent); }
+        .tp-list { display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 240px); overflow-y:auto; }
+        .tp-row { display:flex; align-items:flex-start; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:12px; transition:box-shadow .2s; }
+        .tp-row.pulse { box-shadow:0 0 0 3px rgba(74,140,255,0.4); }
+        .tp-check { width:20px; height:20px; min-width:20px; border-radius:50%; border:2px solid #d1d5db; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+        .tp-check:hover { border-color:var(--accent); }
+        .tp-check.done { background:#34a853; border-color:#34a853; }
+        .tp-check.done::after { content:''; width:5px; height:9px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); margin-bottom:2px; }
+        .tp-title { font-size:0.86rem; word-break:break-word; }
+        .tp-row.done .tp-title { text-decoration:line-through; color:var(--ink-faint); }
+        .tp-meta { font-size:0.72rem; color:var(--ink-faint); margin-top:3px; }
+        .tp-meta.over { color:#d64545; }
+        .empty { text-align:center; color:var(--ink-faint); font-size:0.82rem; padding:22px 10px; }
+
+        /* Settings modal */
+        .ov { position:fixed; inset:0; background:rgba(0,0,0,0.3); display:none; align-items:center; justify-content:center; z-index:1000; }
+        .ov.open { display:flex; }
+        .modal { width:100%; max-width:360px; background:var(--surface); color:var(--ink); border:1px solid var(--border); border-radius:18px; padding:22px; box-shadow:0 20px 50px rgba(0,0,0,0.2); }
+        .modal .mh { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+        .modal .mh b { font-size:1.05rem; }
+        .modal .mx { background:var(--surface-2); border:none; color:var(--ink-soft); width:30px; height:30px; border-radius:8px; cursor:pointer; }
+        .swatches { display:flex; gap:12px; }
+        .sw { width:34px; height:34px; border-radius:50%; cursor:pointer; border:3px solid transparent; }
+        .sw.active { border-color:var(--ink); }
+
+        #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:#e74c3c; color:#fff; padding:10px 18px; border-radius:10px; font-size:0.85rem; opacity:0; transition:opacity .25s,transform .25s; z-index:2000; pointer-events:none; }
+        #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+        /* ── Momentum rings + streak (ported from project/ reference) ── */
+        .dash-duo { display:grid; grid-template-columns:1.2fr 1fr; gap:16px; margin-top:22px; }
+        @media (max-width:640px){ .dash-duo{ grid-template-columns:1fr; } }
+        .rings-card, .streak-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+        .rings-card h5, .streak-card h5 { font-size:1rem; font-weight:600; margin-bottom:2px; }
+        .rings-card .rc-sub, .streak-card .sc-sub { font-size:0.74rem; color:var(--ink-faint); margin-bottom:14px; }
+        .rings-grid { display:flex; align-items:center; gap:20px; }
+        .ring-wrap { position:relative; width:130px; height:130px; flex-shrink:0; }
+        .ring-wrap svg { width:100%; height:100%; display:block; }
+        .ring-wrap .ring-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+        .ring-wrap .ring-num { font-size:1.5rem; font-weight:700; color:var(--ink); line-height:1; }
+        .ring-wrap .ring-lbl { font-size:0.64rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-faint); font-weight:600; margin-top:3px; }
+        .ring-fg { transition:stroke-dashoffset .8s cubic-bezier(0.2,0.9,0.3,1); }
+        .ring-legend { flex:1; display:flex; flex-direction:column; gap:10px; }
+        .legend-row { display:flex; align-items:center; gap:9px; font-size:0.8rem; color:var(--ink-soft); }
+        .legend-row .lg-swatch { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+        .legend-row .lg-name { flex:1; }
+        .legend-row .lg-val { font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; }
+
+        .streak-card { text-align:center; display:flex; flex-direction:column; align-items:center; }
+        .streak-flame { font-size:2rem; line-height:1; }
+        .streak-lbl { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-faint); font-weight:700; margin-top:8px; }
+        .streak-num { font-size:2.6rem; font-weight:800; color:var(--ink); line-height:1; margin-top:2px; }
+        .streak-num .unit { font-size:0.9rem; font-weight:600; color:var(--ink-faint); margin-left:5px; }
+        .streak-note { font-size:0.74rem; color:var(--ink-faint); margin-top:8px; max-width:220px; }
+        .streak-days { display:flex; gap:6px; margin-top:14px; }
+        .streak-day { width:20px; height:20px; border-radius:6px; background:var(--surface-2); border:1px solid var(--border); }
+        .streak-day.on { background:var(--accent); border-color:var(--accent); }
+        .streak-dow { display:flex; gap:6px; margin-top:5px; }
+        .streak-dow span { width:20px; text-align:center; font-size:0.6rem; color:var(--ink-faint); font-weight:700; }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <!-- Sidebar removed: navigation, theme toggle and settings now live in the fluid menu. -->
+
+    <!-- Main -->
+    <div class="main-wrap">
+        <div class="topbar">
+            <div class="search"><i class="bi bi-search"></i><input id="topSearch" placeholder="Find your task, projects..." oninput="onSearch(this.value)"></div>
+            <div class="clock"><div class="t" id="clockT">--:--:--</div><div class="d" id="clockD"></div></div>
+            <div class="tb-actions">
+                <div class="notif-wrap">
+                    <button class="tb-icon" id="bellBtn" title="Notifications" aria-label="Notifications" onclick="toggleNotif(event)"><i class="bi bi-bell-fill"></i><span class="tb-badge" id="notifBadge" style="display:none;">0</span></button>
+                    <div class="notif-dd" id="notifDD">
+                        <div class="notif-head"><h6>Notifications</h6><button type="button" class="notif-clear" id="notifClearBtn" onclick="clearAllNotifs(event)">Clear all</button></div>
+                        <div id="notifList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Main column -->
+            <div>
+                <div class="greet" id="greetBig">Welcome back, {{ display_name }}</div>
+                <div class="greet-sub" id="greetSub"></div>
+
+                <div class="bucket-cards" id="bucketCards"></div>
+
+                <div class="panel-card">
+                    <div class="pc-head"><h5><i class="bi bi-calendar3 me-2"></i>This Week</h5><span class="tp-date" id="weekRange"></span></div>
+                    <div class="week-strip" id="weekStrip"></div>
+                </div>
+
+                <div class="dash-duo">
+                    <!-- Momentum: concentric completion rings per bucket -->
+                    <div class="rings-card">
+                        <h5>Momentum</h5>
+                        <div class="rc-sub">Completion across buckets</div>
+                        <div class="rings-grid">
+                            <div class="ring-wrap">
+                                <svg viewBox="0 0 130 130" id="momentumRings" aria-hidden="true"></svg>
+                                <div class="ring-center">
+                                    <div class="ring-num" id="ringPct">0%</div>
+                                    <div class="ring-lbl">Done</div>
+                                </div>
+                            </div>
+                            <div class="ring-legend" id="ringLegend"></div>
+                        </div>
+                    </div>
+
+                    <!-- Streak: recent active-day momentum -->
+                    <div class="streak-card">
+                        <div class="streak-flame">🔥</div>
+                        <div class="streak-lbl">Active streak</div>
+                        <div class="streak-num" id="streakNum">0<span class="unit">days</span></div>
+                        <p class="streak-note" id="streakNote">Complete a task to start your streak.</p>
+                        <div class="streak-days" id="streakDays"></div>
+                        <div class="streak-dow" id="streakDow"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right panel -->
+            <aside class="today-panel">
+                <div class="tp-head"><h5>Today's Task</h5><button class="tp-new" onclick="toggleAdd()"><i class="bi bi-plus-lg"></i> New Task</button></div>
+                <div class="tp-date" id="tpDate"></div>
+                <div class="tp-add" id="tpAdd"><input id="tpAddInput" placeholder="Task title, press Enter..." onkeydown="onAddKey(event)"></div>
+                <div class="tp-tabs">
+                    <span class="tp-tab active" data-f="all" onclick="setFilter('all')">All <b id="c-all">0</b></span>
+                    <span class="tp-tab" data-f="open" onclick="setFilter('open')">Open <b id="c-open">0</b></span>
+                    <span class="tp-tab" data-f="closed" onclick="setFilter('closed')">Closed <b id="c-closed">0</b></span>
+                </div>
+                <div class="tp-list" id="tpList"></div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<!-- Settings modal -->
+<div class="ov" id="settingsOv" onclick="if(event.target===this)closeSettings()">
+    <div class="modal">
+        <div class="mh"><b>Settings</b><button class="mx" onclick="closeSettings()"><i class="bi bi-x-lg"></i></button></div>
+        <div style="font-size:0.8rem;font-weight:600;color:var(--ink-soft);margin-bottom:12px;"><i class="bi bi-palette-fill me-2"></i>Accent Color</div>
+        <div class="swatches">
+            <div class="sw" style="background:#4A8CFF" data-color="#4A8CFF" onclick="setAccent(this)"></div>
+            <div class="sw" style="background:#6C5CE7" data-color="#6C5CE7" onclick="setAccent(this)"></div>
+            <div class="sw" style="background:#43b581" data-color="#43b581" onclick="setAccent(this)"></div>
+            <div class="sw" style="background:#E67E22" data-color="#E67E22" onclick="setAccent(this)"></div>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+    const LIST_ID = '{{ list_id }}';
+    const API = `/api/${LIST_ID}`;
+    const NAME = {{ display_name|tojson }};
+    let allTodos = [], searchQuery = '', activeFilter = 'all';
+
+    // helpers
+    function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+    function mondayOf(d0){ const d=new Date(d0); d.setHours(0,0,0,0); const dow=d.getDay(); const back=(dow===0)?6:dow-1; d.setDate(d.getDate()-back); return d; }
+    function isoDate(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+    // Canonical bucketing (shared with the board / index.html):
+    //   today/overdue -> 'today'; after today .. current-week Sunday -> 'this_week';
+    //   beyond current-week Sunday, or no date -> 'eventually'.
+    function bucketFor(t){
+        if(!t.due_date) return 'eventually';
+        const due=new Date(t.due_date+'T00:00:00'), today=startOfToday();
+        if(due<=today) return 'today';
+        const curSun=mondayOf(today); curSun.setDate(curSun.getDate()+6); // current-week Sunday
+        if(due<=curSun) return 'this_week';
+        return 'eventually';
+    }
+    function isOverdue(t){ if(!t.due_date||t.completed) return false; return new Date(t.due_date+'T00:00:00') < startOfToday(); }
+    function isDueToday(t){ if(!t.due_date) return false; return isoDate(new Date(t.due_date+'T00:00:00'))===isoDate(startOfToday()); }
+    function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+    function showToast(m){ const e=document.getElementById('toast'); e.textContent=m; e.classList.add('show'); setTimeout(()=>e.classList.remove('show'),3000); }
+
+    // profile + clock
+    function greeting(){ const h=new Date().getHours(); return h<12?'Morning':h<18?'Afternoon':'Evening'; }
+    (function initProfile(){
+        // The sidebar (with #avatar / #greet) was removed; greet now lives in the
+        // main column as #greetBig. Guard every lookup so a missing node can't
+        // throw and halt the rest of this script (clock, data load, etc.).
+        const big = document.getElementById('greetBig');
+        if (big) big.textContent = greeting()+', '+NAME;
+        const sub = document.getElementById('greetSub');
+        if (sub) sub.textContent = "Here's what's on your plate.";
+    })();
+    function tickClock(){
+        const now=new Date();
+        document.getElementById('clockT').textContent = now.toLocaleTimeString('en-US',{hour12:false});
+        const ds = now.toLocaleDateString('en-US',{weekday:'long', day:'numeric', month:'long'});
+        document.getElementById('clockD').textContent = ds;
+        document.getElementById('tpDate').textContent = ds;
+    }
+
+    // theme
+    function setTheme(mode){
+        document.documentElement.setAttribute('data-theme', mode);
+        localStorage.setItem('todo_theme', mode);
+        document.querySelectorAll('.tt-opt').forEach(o=>o.classList.toggle('active', o.dataset.theme===mode));
+    }
+    (function initTheme(){ const m=localStorage.getItem('todo_theme')||'light'; setTheme(m); })();
+
+    // settings / accent
+    const ACCENT_KEY='todo_settings_'+LIST_ID;
+    function getAccent(){ try{ return (JSON.parse(localStorage.getItem(ACCENT_KEY))||{}).accentColor||'#4A8CFF'; }catch{ return '#4A8CFF'; } }
+    function applyAccent(){ const c=getAccent(); document.documentElement.style.setProperty('--accent',c); document.querySelectorAll('.sw').forEach(s=>s.classList.toggle('active',s.dataset.color===c)); }
+    function setAccent(el){ let s={}; try{ s=JSON.parse(localStorage.getItem(ACCENT_KEY))||{}; }catch{} s.accentColor=el.dataset.color; localStorage.setItem(ACCENT_KEY,JSON.stringify(s)); applyAccent(); }
+    function openSettings(e){ if(e)e.preventDefault(); document.getElementById('settingsOv').classList.add('open'); }
+    function closeSettings(){ document.getElementById('settingsOv').classList.remove('open'); }
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeSettings(); closeNotif(); } });
+
+    // data
+    async function loadAll(){
+        try{ const r=await fetch(`${API}/todos`); if(!r.ok) throw 0; allTodos=await r.json(); renderAll(); }
+        catch(e){ document.getElementById('tpList').innerHTML='<div class="empty">Couldn\'t load tasks.</div>'; }
+    }
+    function renderAll(){ renderShortcuts(); renderNotif(); renderBuckets(); renderWeek(); renderMomentum(); renderStreak(); renderPanel(); }
+    function matchesSearch(t){ if(!searchQuery) return true; const q=searchQuery.toLowerCase(); return (t.title||'').toLowerCase().includes(q)||(t.description||'').toLowerCase().includes(q); }
+
+    function renderShortcuts(){
+        const b={today:0,this_week:0,eventually:0}; allTodos.forEach(t=>b[bucketFor(t)]++);
+        const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+        set('sc-today',b.today); set('sc-week',b.this_week); set('sc-evt',b.eventually);
+    }
+
+    // notifications
+    // Dismissed notifications persist per-list (shared key with the board page)
+    // so cleared items stay cleared until they become newly relevant again.
+    const NOTIF_DISMISS_KEY = `todo_notif_dismissed_${LIST_ID}`;
+    function getDismissed(){ try{ return new Set(JSON.parse(localStorage.getItem(NOTIF_DISMISS_KEY))||[]); }catch{ return new Set(); } }
+    function saveDismissed(set){ localStorage.setItem(NOTIF_DISMISS_KEY, JSON.stringify([...set])); }
+
+    function notifTasks(){ return allTodos.filter(t=>!t.completed && (isOverdue(t)||isDueToday(t))); }
+    function renderNotif(){
+        const eligible=notifTasks();
+
+        // Drop dismissed IDs that are no longer eligible so a task can re-notify.
+        const eligibleIds=new Set(eligible.map(t=>t.id));
+        const dismissed=getDismissed(); let changed=false;
+        dismissed.forEach(id=>{ if(!eligibleIds.has(id)){ dismissed.delete(id); changed=true; } });
+        if(changed) saveDismissed(dismissed);
+
+        const items=eligible.filter(t=>!dismissed.has(t.id));
+
+        const badge=document.getElementById('notifBadge');
+        if(items.length){ badge.style.display='flex'; badge.textContent=items.length; } else { badge.style.display='none'; }
+        const clearBtn=document.getElementById('notifClearBtn');
+        if(clearBtn) clearBtn.disabled=!items.length;
+        const list=document.getElementById('notifList');
+        if(!items.length){ list.innerHTML='<div class="notif-empty"><i class="bi bi-check2-circle" style="font-size:1.6rem;display:block;margin-bottom:6px;"></i>You\'re all caught up!</div>'; return; }
+        list.innerHTML=items.map(t=>{
+            const over=isOverdue(t);
+            return `<div class="notif-item" onclick="jumpTo(${t.id})">
+                <i class="bi ${over?'bi-exclamation-circle':'bi-clock'}" style="color:${over?'#d64545':'#b8730a'};margin-top:2px;"></i>
+                <div><div class="ni-title">${escapeHtml(t.title)}</div>
+                <span class="notif-tag ${over?'nt-over':'nt-today'}">${over?'Overdue':'Due today'}</span></div>
+                <button type="button" class="notif-dismiss" title="Dismiss" aria-label="Dismiss notification" onclick="dismissNotif(event,${t.id})">&times;</button></div>`;
+        }).join('');
+    }
+    function dismissNotif(e,id){
+        if(e){ e.stopPropagation(); e.preventDefault(); }
+        const d=getDismissed(); d.add(id); saveDismissed(d); renderNotif();
+    }
+    function clearAllNotifs(e){
+        if(e){ e.stopPropagation(); e.preventDefault(); }
+        const d=getDismissed(); notifTasks().forEach(t=>d.add(t.id)); saveDismissed(d); renderNotif();
+    }
+    function toggleNotif(e){ e.stopPropagation(); const open=document.getElementById('notifDD').classList.toggle('open'); const b=document.getElementById('bellBtn'); if(b) b.classList.toggle('open', open); }
+    function closeNotif(){ document.getElementById('notifDD').classList.remove('open'); const b=document.getElementById('bellBtn'); if(b) b.classList.remove('open'); }
+    document.addEventListener('click',e=>{ const w=document.querySelector('.notif-wrap'); if(w && !w.contains(e.target)) closeNotif(); });
+    function jumpTo(id){
+        closeNotif(); setFilter('all');
+        setTimeout(()=>{ const row=document.querySelector(`.tp-row[data-id="${id}"]`); if(row){ row.scrollIntoView({behavior:'smooth',block:'center'}); row.classList.add('pulse'); setTimeout(()=>row.classList.remove('pulse'),1500); } },60);
+    }
+
+    // bucket cards
+    function renderBuckets(){
+        const meta={today:['Today','#f5a623'],this_week:['This week','#4a90e2'],eventually:['Eventually','#4caf50']};
+        const agg={today:{t:0,c:0},this_week:{t:0,c:0},eventually:{t:0,c:0}};
+        allTodos.forEach(t=>{ const b=bucketFor(t); agg[b].t++; if(t.completed)agg[b].c++; });
+        document.getElementById('bucketCards').innerHTML = ['today','this_week','eventually'].map(k=>{
+            const [name,col]=meta[k], a=agg[k], pct=a.t?Math.round(a.c/a.t*100):0;
+            return `<div class="bcard">
+                <div class="bh"><span class="sc-dot" style="background:${col}"></span><span class="bname">${name}</span><span class="bcount">${a.t}</span></div>
+                <div class="btrack"><div class="bfill" style="width:${pct}%;background:${col}"></div></div>
+                <div class="bmeta">${a.c} of ${a.t} done · ${pct}%</div></div>`;
+        }).join('');
+    }
+
+    // momentum rings — concentric completion rings, one per bucket
+    function renderMomentum(){
+        const meta = { today:['Today','#f5a623'], this_week:['This week','#4a90e2'], eventually:['Eventually','#4caf50'] };
+        const agg = { today:{t:0,c:0}, this_week:{t:0,c:0}, eventually:{t:0,c:0} };
+        allTodos.forEach(t => { const b=bucketFor(t); agg[b].t++; if(t.completed) agg[b].c++; });
+
+        const doneAll = allTodos.filter(t=>t.completed).length;
+        const totalPct = allTodos.length ? Math.round(doneAll / allTodos.length * 100) : 0;
+        const pctEl = document.getElementById('ringPct'); if(pctEl) pctEl.textContent = totalPct + '%';
+
+        const order = ['today','this_week','eventually'];
+        const size = 130, stroke = 11, cx = 65, cy = 65;
+        const trackColor = getComputedStyle(document.documentElement).getPropertyValue('--track').trim() || '#eef0f4';
+        let svg = '';
+        order.forEach((k, i) => {
+            const r = (size - stroke) / 2 - i * (stroke + 3);
+            if (r < stroke) return;
+            const c = 2 * Math.PI * r;
+            const a = agg[k];
+            const pct = a.t ? Math.min(1, a.c / a.t) : 0;
+            const col = meta[k][1];
+            svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${trackColor}" stroke-width="${stroke}"/>`
+                +  `<circle class="ring-fg" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}"`
+                +  ` stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c*(1-pct)).toFixed(1)}"`
+                +  ` transform="rotate(-90 ${cx} ${cy})"/>`;
+        });
+        const rings = document.getElementById('momentumRings'); if(rings) rings.innerHTML = svg;
+
+        const legend = document.getElementById('ringLegend');
+        if(legend) legend.innerHTML = order.map(k => {
+            const a = agg[k];
+            return `<div class="legend-row"><span class="lg-swatch" style="background:${meta[k][1]}"></span>`
+                + `<span class="lg-name">${meta[k][0]}</span><span class="lg-val">${a.c}/${a.t}</span></div>`;
+        }).join('');
+    }
+
+    // streak — consecutive recent days (ending today) with completed-task activity.
+    // Derived from due_date on completed tasks (no backend completion history),
+    // so it is framed as an "active streak" rather than a strict daily streak.
+    function renderStreak(){
+        const doneDays = new Set(
+            allTodos.filter(t => t.completed && t.due_date).map(t => t.due_date)
+        );
+        // Count back from today while each day has activity.
+        let streak = 0;
+        const cur = startOfToday();
+        while (doneDays.has(isoDate(cur))) { streak++; cur.setDate(cur.getDate() - 1); }
+
+        const numEl = document.getElementById('streakNum');
+        if (numEl) numEl.innerHTML = streak + '<span class="unit">day' + (streak === 1 ? '' : 's') + '</span>';
+        const note = document.getElementById('streakNote');
+        if (note) note.textContent = streak > 0
+            ? "You've completed tasks on consecutive days. Keep it going!"
+            : 'Complete a task dated today to start your streak.';
+
+        // This-week dots: mark days (Mon..Sun) that have any completed activity.
+        const monday = mondayOf(startOfToday());
+        const dow = ['M','T','W','T','F','S','S'];
+        const days = document.getElementById('streakDays');
+        const dowEl = document.getElementById('streakDow');
+        if (days) {
+            let html = '';
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(monday); d.setDate(monday.getDate() + i);
+                const on = doneDays.has(isoDate(d));
+                html += `<div class="streak-day ${on ? 'on' : ''}" title="${isoDate(d)}"></div>`;
+            }
+            days.innerHTML = html;
+        }
+        if (dowEl) dowEl.innerHTML = dow.map(x => `<span>${x}</span>`).join('');
+    }
+
+    // week timeline
+    function renderWeek(){
+        const monday=mondayOf(startOfToday()), todayIso=isoDate(startOfToday()), days=[];
+        for(let i=0;i<7;i++){ const d=new Date(monday); d.setDate(d.getDate()+i); days.push(d); }
+        document.getElementById('weekRange').textContent = `${monday.toLocaleDateString('en-US',{day:'numeric',month:'short'})} – ${days[6].toLocaleDateString('en-US',{day:'numeric',month:'short'})}`;
+        const dn=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        document.getElementById('weekStrip').innerHTML = days.map((d,i)=>{
+            const iso=isoDate(d);
+            const chips=allTodos.filter(t=>t.due_date===iso && matchesSearch(t)).map(t=>{
+                let c=''; if(t.completed)c='done'; else if(isOverdue(t))c='over';
+                return `<div class="wchip ${c}">${escapeHtml(t.title)}</div>`;
+            }).join('');
+            return `<div class="wday ${iso===todayIso?'today':''}"><div class="wlabel">${dn[i]}<span class="dn">${d.getDate()}</span></div>${chips}</div>`;
+        }).join('');
+    }
+
+    // today panel
+    function todays(){ return allTodos.filter(t=>bucketFor(t)==='today'); }
+    function renderPanel(){
+        const base=todays();
+        document.getElementById('c-all').textContent=base.length;
+        document.getElementById('c-open').textContent=base.filter(t=>!t.completed).length;
+        document.getElementById('c-closed').textContent=base.filter(t=>t.completed).length;
+        let items=base.filter(matchesSearch);
+        if(activeFilter==='open') items=items.filter(t=>!t.completed);
+        else if(activeFilter==='closed') items=items.filter(t=>t.completed);
+        const list=document.getElementById('tpList');
+        if(!items.length){ list.innerHTML='<div class="empty">No tasks here. Add one above!</div>'; return; }
+        list.innerHTML=items.map(t=>{
+            const over=isOverdue(t);
+            const dl=t.due_date?new Date(t.due_date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'No date';
+            return `<div class="tp-row ${t.completed?'done':''}" data-id="${t.id}">
+                <div class="tp-check ${t.completed?'done':''}" onclick="checkClick(event, ${t.id}, ${!t.completed})"></div>
+                <div style="flex:1;min-width:0;"><div class="tp-title">${escapeHtml(t.title)}</div>
+                <div class="tp-meta ${over?'over':''}">${over?'Overdue · ':''}${dl}</div></div></div>`;
+        }).join('');
+    }
+    function setFilter(f){ activeFilter=f; document.querySelectorAll('.tp-tab').forEach(el=>el.classList.toggle('active',el.dataset.f===f)); renderPanel(); }
+    function onSearch(v){ searchQuery=v.trim(); renderWeek(); renderPanel(); }
+
+    // actions
+    function checkClick(e, id, completed){
+        if(completed && typeof window.confettiBurst === 'function'){
+            const r = e.currentTarget.getBoundingClientRect();
+            window.confettiBurst(r.left + r.width/2, r.top + r.height/2);
+        }
+        toggle(id, completed);
+    }
+    async function toggle(id,completed){
+        try{ const r=await fetch(`${API}/todo/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({completed})}); if(!r.ok)throw 0; await loadAll(); }
+        catch(e){ showToast('Could not update task.'); await loadAll(); }
+    }
+    function toggleAdd(){ const w=document.getElementById('tpAdd'); w.classList.toggle('active'); if(w.classList.contains('active')) document.getElementById('tpAddInput').focus(); }
+    async function onAddKey(e){
+        if(e.key==='Enter'){ const v=e.target.value.trim(); if(!v)return;
+            try{ const r=await fetch(`${API}/todo`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:v,category:'today',due_date:isoDate(startOfToday())})}); if(!r.ok)throw 0; e.target.value=''; document.getElementById('tpAdd').classList.remove('active'); await loadAll(); }
+            catch(err){ showToast('Could not add task.'); }
+        } else if(e.key==='Escape'){ e.target.value=''; document.getElementById('tpAdd').classList.remove('active'); }
+    }
+
+    // init
+    applyAccent(); tickClock(); setInterval(tickClock,1000); loadAll();
+</script>
+{% include "_fluid_menu.html" %}
+{% include "_confetti.html" %}
+</body>
+</html>

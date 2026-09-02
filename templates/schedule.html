@@ -1,0 +1,194 @@
+{% extends "_layout.html" %}
+{% block title %}Schedule - Todos{% endblock %}
+
+{% block extra_css %}
+    /* FullCalendar — themed via app CSS variables so light + dark both work. */
+    #calendar { --fc-border-color: var(--border); --fc-page-bg-color: transparent; color: var(--ink); }
+    .fc { font-size: 0.85rem; }
+    .fc .fc-toolbar-title { font-size: 1.1rem; font-weight: 700; color: var(--ink); }
+    .fc .fc-col-header-cell-cushion,
+    .fc .fc-daygrid-day-number { color: var(--ink-soft); text-decoration: none; }
+    .fc-theme-standard .fc-scrollgrid,
+    .fc-theme-standard td, .fc-theme-standard th { border-color: var(--border); }
+    .fc .fc-daygrid-day.fc-day-today { background: var(--accent-soft); }
+    .fc .fc-button {
+        background: var(--surface-2); border: 1px solid var(--border);
+        color: var(--ink); text-transform: capitalize; font-size: 0.8rem; box-shadow: none;
+        transition: background var(--t-fast), color var(--t-fast);
+    }
+    .fc .fc-button:hover { background: var(--border); color: var(--ink); }
+    .fc .fc-button-primary:not(:disabled).fc-button-active,
+    .fc .fc-button-primary:not(:disabled):active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .fc .fc-button-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .fc .fc-daygrid-day-frame { min-height: 84px; }
+    .fc-event { border: none; border-radius: 6px; padding: 2px 5px; font-size: 0.72rem; cursor: grab; background: var(--accent); color: #fff; }
+    .fc-event.ev-completed { background: var(--success); text-decoration: line-through; opacity: 0.75; }
+    .fc-event.ev-overdue { background: #d64545; }
+    .fc .fc-list-event:hover td { background: var(--surface-2); }
+    .fc .fc-list-day-cushion { background: var(--surface-2); color: var(--ink); }
+    /* NOTE: no backdrop-filter here — it breaks FullCalendar drag positioning. */
+    .cal-wrap {
+        padding: 20px;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        box-shadow: var(--shadow-md);
+    }
+    /* Make the drag mirror visible and on top */
+    .fc-event.fc-event-dragging, .fc-event-mirror {
+        opacity: 0.9 !important;
+        z-index: 9999 !important;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
+
+    /* Toast */
+    #toast {
+        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+        background: #e74c3c; color: #fff; padding: 10px 18px; border-radius: 10px;
+        font-size: 0.85rem; opacity: 0; transition: opacity 0.25s, transform 0.25s; z-index: 2000;
+        pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Phone tuning: let the calendar toolbar wrap and tighten the wrapper. */
+    @media (max-width: 768px) {
+        .fc .fc-toolbar.fc-header-toolbar { flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        .fc .fc-toolbar-title { font-size: 1rem; }
+        .cal-wrap { padding: 10px; border-radius: 12px; }
+        .fc .fc-daygrid-day-frame { min-height: 56px; }
+    }
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div class="page-title">Schedule</div>
+        <div class="page-subtitle">Your tasks on a calendar &mdash; drag to reschedule, click a day to add</div>
+    </div>
+    <a class="btn-back" href="/list/{{ list_id }}"><i class="bi bi-check2-square"></i> Go to Board</a>
+</div>
+
+<div class="stat-grid">
+    {% for cat, label, icon, tone in [('today','Today','bi-sun-fill','ic-orange'),('this_week','This week','bi-calendar-week','ic-blue'),('eventually','Eventually','bi-hourglass','ic-purple')] %}
+    {% set c = stats.by_category[cat] %}
+    <div class="glass stat-card">
+        <div class="stat-top">
+            <div class="stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></div>
+            {% if c.pending %}<span class="chip chip-warn"><i class="bi bi-hourglass-split"></i>{{ c.pending }} left</span>
+            {% elif c.total %}<span class="chip chip-up"><i class="bi bi-check2"></i>Done</span>{% endif %}
+        </div>
+        <div class="stat-value">{{ c.total }}</div>
+        <div class="stat-label">{{ label }} &middot; {{ c.completed }} done</div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="cal-wrap">
+    <div id="calendar"></div>
+</div>
+
+<div id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+    // Load FullCalendar from CDN, then init
+    (function () {
+        const LIST_ID = '{{ list_id }}';
+        const API = `/api/${LIST_ID}`;
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function classesFor(ev) {
+            const cls = [];
+            if (ev.extendedProps.completed) cls.push('ev-completed');
+            else if (ev.start) {
+                // Use ev.start (a Date FullCalendar provides) rather than ev.startStr,
+                // which is not reliably populated inside the eventClassNames callback.
+                const due = new Date(ev.start.getFullYear(), ev.start.getMonth(), ev.start.getDate());
+                const today = new Date(); today.setHours(0,0,0,0);
+                if (due < today) cls.push('ev-overdue');
+            }
+            return cls;
+        }
+
+        var mqMobile = window.matchMedia('(max-width: 768px)');
+
+        function initCalendar() {
+            const el = document.getElementById('calendar');
+            const isMobile = mqMobile.matches;
+            const calendar = new FullCalendar.Calendar(el, {
+                initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+                height: 'auto',
+                // Compact toolbar on phones (stacked, no view switcher); full toolbar on larger screens.
+                headerToolbar: isMobile
+                    ? { left: 'prev,next', center: 'title', right: 'today' }
+                    : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek,listWeek' },
+                editable: !isMobile,   // drag-to-reschedule is awkward on touch; list view is tap-friendly
+                eventClassNames: (arg) => classesFor(arg.event),
+                events: (info, success, failure) => {
+                    fetch(`${API}/calendar`)
+                        .then(r => r.ok ? r.json() : Promise.reject())
+                        .then(success)
+                        .catch(failure);
+                },
+                // Task 9: drag-to-reschedule
+                eventDrop: async (info) => {
+                    const newDate = info.event.startStr;  // YYYY-MM-DD
+                    try {
+                        const res = await fetch(`${API}/todo/${info.event.id}/date`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ due_date: newDate })
+                        });
+                        if (!res.ok) throw new Error();
+                    } catch {
+                        info.revert();
+                        showToast('Could not reschedule task. Reverted.');
+                    }
+                },
+                // Task 10: add a task for a clicked day
+                dateClick: async (info) => {
+                    const title = prompt(`New task for ${info.dateStr}:`);
+                    if (!title || !title.trim()) return;
+                    try {
+                        const res = await fetch(`${API}/todo`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: title.trim(), category: 'today', due_date: info.dateStr })
+                        });
+                        if (!res.ok) throw new Error();
+                        calendar.refetchEvents();
+                    } catch {
+                        showToast('Could not add task.');
+                    }
+                }
+            });
+            calendar.render();
+
+            // Switch between month grid (desktop) and list view (phone) when the
+            // viewport crosses the breakpoint, and toggle drag editing to match.
+            function syncView(e) {
+                const mobile = e.matches;
+                calendar.changeView(mobile ? 'listWeek' : 'dayGridMonth');
+                calendar.setOption('editable', !mobile);
+                calendar.setOption('headerToolbar', mobile
+                    ? { left: 'prev,next', center: 'title', right: 'today' }
+                    : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek,listWeek' });
+            }
+            if (mqMobile.addEventListener) mqMobile.addEventListener('change', syncView);
+            else if (mqMobile.addListener) mqMobile.addListener(syncView); // older Safari
+        }
+
+        // Inject FullCalendar CDN then init (v6 bundles CSS inside the JS)
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js';
+        script.onload = initCalendar;
+        script.onerror = () => showToast('Failed to load calendar library.');
+        document.body.appendChild(script);
+    })();
+{% endblock %}
