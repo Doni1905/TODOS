@@ -1,0 +1,206 @@
+{#
+  Fluid circular menu — Flask/Jinja port of the React "fluid-menu" component.
+
+  A circular button that expands to reveal the full app navigation with a
+  smooth staggered transition. Pure HTML + CSS + vanilla JS — no React /
+  Tailwind / npm. Uses the app's existing CSS variables (--surface, --border,
+  --ink-soft, --accent) and Bootstrap Icons.
+
+  Implements every menu destination from the sidebar:
+    Dashboard, My Tasks, Overview, Analytics, Calendar, Completed,
+    Settings (opens the settings modal), Logout.
+
+  Features:
+    - staggered expand/collapse animation
+    - menu -> X icon crossfade on the trigger
+    - tooltip label per item (slides in on hover)
+    - active-page highlight (detected from the current URL)
+    - link items + action items (Settings calls openSettings())
+    - keyboard: Escape closes, focus ring on items
+    - click-outside to close
+
+  Usage: {% include "_fluid_menu.html" %}  (included in _layout.html and the
+  standalone dashboard.html / index.html pages).
+#}
+<style>
+  .fluid-menu { position: fixed; bottom: 28px; right: 28px; width: 56px; z-index: 300; }
+  .fm-stack { position: relative; }
+
+  /* Trigger — always visible circle */
+  .fm-trigger {
+    position: relative; width: 56px; height: 56px; border-radius: 50%;
+    background: var(--accent, #4A8CFF); border: none; color: #fff; cursor: pointer; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    transition: transform .3s cubic-bezier(0.4,0,0.2,1), box-shadow .2s;
+  }
+  .fm-trigger:hover { box-shadow: 0 10px 28px rgba(0,0,0,0.24); }
+  .fm-trigger.fm-pulse { animation: fmPulse .42s ease; }
+  @keyframes fmPulse {
+    0%   { box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 0 0 0 var(--accent, #4A8CFF); }
+    45%  { box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 0 0 10px rgba(74,140,255,0.18); }
+    100% { box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 0 0 0 rgba(74,140,255,0); }
+  }
+  .fluid-menu[data-expanded="true"] .fm-trigger { transform: rotate(90deg); }
+  .fm-trigger .fm-ic { position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 1.4rem; transition: all .3s ease; }
+  .fm-trigger .fm-ic-open { opacity: 1; transform: rotate(0) scale(1); }
+  .fm-trigger .fm-ic-close { opacity: 0; transform: rotate(-180deg) scale(0); }
+  .fluid-menu[data-expanded="true"] .fm-trigger { transform: rotate(0deg); }
+  .fluid-menu[data-expanded="true"] .fm-ic-open { opacity: 0; transform: rotate(180deg) scale(0); }
+  .fluid-menu[data-expanded="true"] .fm-ic-close { opacity: 1; transform: rotate(0) scale(1); }
+
+  /* Revealed items — stacked behind the trigger, rise on expand */
+  .fm-item {
+    position: absolute; top: 0; left: 0; width: 56px; height: 56px; border-radius: 50%;
+    background: var(--surface, #fff); border: 1px solid var(--border, #e5e7eb);
+    color: var(--ink-soft, #6b7280); display: flex; align-items: center; justify-content: center;
+    font-size: 1.15rem; text-decoration: none; opacity: 0; transform: translateY(0) scale(0.5);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.10); cursor: pointer;
+    transition: transform .32s cubic-bezier(0.34,1.3,0.64,1), opacity .28s, color .18s, background .18s;
+    -webkit-font-smoothing: antialiased; backface-visibility: hidden; pointer-events: none;
+  }
+  .fm-item:focus-visible { outline: 2px solid var(--accent, #4A8CFF); outline-offset: 2px; }
+  .fm-item:hover { color: var(--accent, #4A8CFF); }
+  .fm-item.active { background: var(--accent, #4A8CFF); border-color: var(--accent, #4A8CFF); color: #fff; }
+  .fm-item.fm-logout:hover { color: #e74c3c; border-color: #e74c3c; }
+
+  .fluid-menu[data-expanded="true"] .fm-item { opacity: 1; pointer-events: auto; }
+  /* Stagger: each item rises 64px more than the last. Delays cascade on open. */
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="1"] { transform: translateY(-64px)  scale(1); transition-delay: .02s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="2"] { transform: translateY(-128px) scale(1); transition-delay: .04s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="3"] { transform: translateY(-192px) scale(1); transition-delay: .06s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="4"] { transform: translateY(-256px) scale(1); transition-delay: .08s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="5"] { transform: translateY(-320px) scale(1); transition-delay: .10s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="6"] { transform: translateY(-384px) scale(1); transition-delay: .12s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="7"] { transform: translateY(-448px) scale(1); transition-delay: .14s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="8"] { transform: translateY(-512px) scale(1); transition-delay: .16s; }
+  .fluid-menu[data-expanded="true"] .fm-item[data-i="9"] { transform: translateY(-576px) scale(1); transition-delay: .18s; }
+
+  /* Tooltip label, slides in from the right of each item on hover */
+  .fm-item .fm-label {
+    position: absolute; right: 68px; white-space: nowrap; background: var(--ink, #1f2233);
+    color: #fff; font-size: 0.76rem; font-weight: 600; padding: 5px 10px; border-radius: 8px;
+    opacity: 0; transform: translateX(8px); pointer-events: none; transition: opacity .16s, transform .16s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  }
+  .fm-item:hover .fm-label { opacity: 1; transform: translateX(0); }
+
+  @media (max-width: 768px) { .fluid-menu { bottom: 20px; right: 20px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .fm-item, .fm-trigger, .fm-trigger .fm-ic { transition-duration: .01ms !important; transition-delay: 0s !important; }
+    .fm-trigger.fm-pulse { animation: none !important; }
+  }
+</style>
+
+<div class="fluid-menu" id="fluidMenu" data-expanded="false">
+  <div class="fm-stack">
+    <!-- Items render first so the trigger stacks on top. data-i sets stagger order. -->
+    <a class="fm-item" data-i="1" href="/dashboard" data-match="/dashboard" aria-label="Dashboard">
+      <i class="bi bi-grid-1x2-fill"></i><span class="fm-label">Dashboard</span></a>
+    <a class="fm-item" data-i="2" href="/list/{{ list_id }}" data-match="/list/" aria-label="My Tasks">
+      <i class="bi bi-check2-square"></i><span class="fm-label">My Tasks</span></a>
+    <a class="fm-item" data-i="3" href="/overview" data-match="/overview" aria-label="Overview">
+      <i class="bi bi-pie-chart-fill"></i><span class="fm-label">Overview</span></a>
+    <a class="fm-item" data-i="4" href="/analytics" data-match="/analytics" aria-label="Analytics">
+      <i class="bi bi-bar-chart-fill"></i><span class="fm-label">Analytics</span></a>
+    <a class="fm-item" data-i="5" href="/schedule" data-match="/schedule" aria-label="Calendar">
+      <i class="bi bi-calendar-week"></i><span class="fm-label">Calendar</span></a>
+    <a class="fm-item" data-i="6" href="/completed" data-match="/completed" aria-label="Completed">
+      <i class="bi bi-check-circle"></i><span class="fm-label">Completed</span></a>
+    <button class="fm-item fm-action" data-i="7" type="button" data-action="settings" aria-label="Settings">
+      <i class="bi bi-gear-fill"></i><span class="fm-label">Settings</span></button>
+    <a class="fm-item fm-logout" data-i="8" href="/logout" aria-label="Logout">
+      <i class="bi bi-box-arrow-right"></i><span class="fm-label">Logout</span></a>
+
+    <!-- Trigger -->
+    <button class="fm-trigger" id="fmTrigger" aria-haspopup="true" aria-expanded="false" aria-label="Open quick menu (long-press to switch theme)" title="Click to open · long-press to switch theme">
+      <span class="fm-ic fm-ic-open"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+      <span class="fm-ic fm-ic-close"><i class="bi bi-x-lg"></i></span>
+    </button>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var menu = document.getElementById('fluidMenu');
+    var trigger = document.getElementById('fmTrigger');
+    if (!menu || !trigger) return;
+    var items = menu.querySelectorAll('.fm-item');
+
+    function setExpanded(v) {
+      menu.setAttribute('data-expanded', v ? 'true' : 'false');
+      trigger.setAttribute('aria-expanded', v ? 'true' : 'false');
+    }
+    function isOpen() { return menu.getAttribute('data-expanded') === 'true'; }
+
+    // Highlight the item matching the current page.
+    (function markActive() {
+      var path = window.location.pathname;
+      items.forEach(function (el) {
+        var m = el.getAttribute('data-match');
+        if (m && (path === m || (m.length > 1 && path.indexOf(m) === 0))) el.classList.add('active');
+      });
+    })();
+
+    // Flip light <-> dark, reusing the app's setTheme() when available so the
+    // choice persists (localStorage) and stays in sync across pages.
+    function toggleTheme() {
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      if (typeof setTheme === 'function') setTheme(next);
+      else { document.documentElement.setAttribute('data-theme', next); try { localStorage.setItem('todo_theme', next); } catch (e2) {} }
+    }
+
+    // Brief accent pulse on the trigger so a theme toggle feels acknowledged.
+    function pulseTrigger() {
+      trigger.classList.remove('fm-pulse');   // restart the animation if mid-flight
+      void trigger.offsetWidth;                // force reflow
+      trigger.classList.add('fm-pulse');
+    }
+    function themeToggleFeedback() { setExpanded(false); toggleTheme(); pulseTrigger(); }
+
+    // ── Trigger gestures ──────────────────────────────────────────────
+    // Single click / tap  -> open/close the menu (instant, no delay).
+    // Long press (touch/mouse hold ~500ms) -> toggle theme.
+    // The long press suppresses the click it consumes so the menu doesn't flicker.
+    var LONG_PRESS_MS = 500;
+    var pressTimer = null;
+    var longPressed = false;   // set when a long press fires; swallows the trailing click
+    var suppressNextClick = false;
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (suppressNextClick) { suppressNextClick = false; return; }
+      setExpanded(!isOpen());
+    });
+
+    // Long press via Pointer Events (mouse, touch, pen).
+    trigger.addEventListener('pointerdown', function (e) {
+      longPressed = false;
+      pressTimer = setTimeout(function () {
+        longPressed = true;
+        suppressNextClick = true;   // don't let the release click open the menu
+        themeToggleFeedback();
+      }, LONG_PRESS_MS);
+    });
+    function cancelPress() { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+    trigger.addEventListener('pointerup', cancelPress);
+    trigger.addEventListener('pointerleave', cancelPress);
+    trigger.addEventListener('pointercancel', cancelPress);
+    // Block the context menu on long-press (mobile Safari/Android).
+    trigger.addEventListener('contextmenu', function (e) { if (longPressed) e.preventDefault(); });
+
+    // Action items (Settings) run a handler instead of navigating.
+    items.forEach(function (el) {
+      var action = el.getAttribute('data-action');
+      if (!action) { el.addEventListener('click', function () { setExpanded(false); }); return; }
+      el.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (action === 'settings') { setExpanded(false); if (typeof openSettings === 'function') openSettings(e); }
+      });
+    });
+
+    document.addEventListener('click', function (e) { if (!menu.contains(e.target)) setExpanded(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setExpanded(false); });
+  })();
+</script>

@@ -1,0 +1,98 @@
+{#
+  Shared styles for the standalone auth screens (login.html + signup.html).
+
+  These pages are intentionally NOT built on _layout.html — they carry no app
+  chrome (no fluid menu, topbar or theme toggle), just a centered split-panel
+  card. Both pages previously duplicated this entire stylesheet; it now lives
+  here once and is pulled in via {% include "_auth_styles.html" %}.
+
+  Design tokens mirror the app's brand (accent #4A8CFF) so the auth screens stay
+  visually consistent with the signed-in experience.
+#}
+<style>
+    :root {
+        --auth-accent: #4A8CFF; --auth-accent-hover: #3b6de0;
+        --auth-ink: #1a1a1a; --auth-ink-soft: #888; --auth-ink-faint: #bbb;
+        --auth-border: #e0e0e0; --auth-surface: #fff; --auth-surface-2: #f8f8f8;
+        --auth-radius: 8px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        background: #111; position: relative;
+    }
+    .page-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-size: cover; background-position: center; background-color: #111; z-index: 0; }
+    .card { position: relative; z-index: 1; display: flex; width: 90%; max-width: 1000px; min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: cardFadeIn 0.8s ease-out forwards; }
+    @keyframes cardFadeIn { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    .left-panel { position: relative; width: 50%; background: #050510; padding: 50px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+    .blue-glow { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; }
+    .curve { position: absolute; border-radius: 50%; border: 1.5px solid transparent; animation: curveFlow 10s ease-in-out infinite; }
+    .curve-1 { width: 600px; height: 600px; top: -20%; left: -30%; border-color: rgba(30,80,255,0.4); box-shadow: 0 0 15px rgba(30,80,255,0.2), inset 0 0 15px rgba(30,80,255,0.1); }
+    .curve-2 { width: 500px; height: 500px; top: 10%; left: -10%; border-color: rgba(50,100,255,0.3); box-shadow: 0 0 20px rgba(50,100,255,0.15), inset 0 0 20px rgba(50,100,255,0.08); animation-delay: -2s; }
+    .curve-3 { width: 700px; height: 700px; top: 20%; left: -40%; border-color: rgba(40,90,255,0.25); box-shadow: 0 0 25px rgba(40,90,255,0.12); animation-delay: -4s; }
+    .curve-4 { width: 400px; height: 400px; bottom: -10%; left: 10%; border-color: rgba(60,120,255,0.35); box-shadow: 0 0 18px rgba(60,120,255,0.2), inset 0 0 18px rgba(60,120,255,0.1); animation-delay: -6s; }
+    .curve-5 { width: 550px; height: 550px; bottom: -30%; left: -20%; border-color: rgba(20,70,255,0.2); box-shadow: 0 0 30px rgba(20,70,255,0.1); animation-delay: -8s; }
+    @keyframes curveFlow { 0%,100% { transform: translate(0,0) rotate(0deg); } 25% { transform: translate(20px,-15px) rotate(5deg); } 50% { transform: translate(-10px,20px) rotate(-3deg); } 75% { transform: translate(15px,10px) rotate(4deg); } }
+    .glow-spot { position: absolute; border-radius: 50%; filter: blur(40px); animation: glowPulse 6s ease-in-out infinite; }
+    .spot-1 { width: 200px; height: 200px; top: 30%; left: 10%; background: rgba(30,80,255,0.3); }
+    .spot-2 { width: 150px; height: 150px; bottom: 20%; left: 30%; background: rgba(50,100,255,0.25); animation-delay: -3s; }
+    @keyframes glowPulse { 0%,100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
+    .brand-content { position: relative; z-index: 2; }
+    .brand-logo { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 40px; letter-spacing: -0.5px; }
+    .brand-tagline { font-size: 26px; font-weight: 700; color: #fff; line-height: 1.35; margin-bottom: 20px; }
+    .brand-subtitle { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; }
+    .brand-footer { position: relative; z-index: 2; font-size: 12px; color: rgba(255,255,255,0.4); }
+
+    .right-panel { width: 50%; background: var(--auth-surface-2); display: flex; align-items: center; justify-content: center; padding: 50px 40px; }
+    .form-container { width: 100%; max-width: 320px; animation: formSlideIn 0.6s ease-out 0.3s forwards; opacity: 0; }
+    @keyframes formSlideIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    .title { font-size: 22px; font-weight: 700; color: var(--auth-ink); text-align: center; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: var(--auth-ink-soft); text-align: center; margin-bottom: 28px; }
+    .btn-google { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 16px; border: 1px solid #ddd; border-radius: var(--auth-radius); background: var(--auth-surface); font-size: 13px; font-weight: 500; color: #333; cursor: pointer; transition: background 0.2s, border-color 0.2s, transform 0.1s; }
+    .btn-google:hover { background: #f5f5f5; border-color: #bbb; }
+    .btn-google:active { transform: scale(0.98); }
+    .btn-google:focus-visible { outline: 2px solid var(--auth-accent); outline-offset: 2px; }
+    .divider { display: flex; align-items: center; margin: 20px 0; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--auth-border); }
+    .divider span { padding: 0 12px; font-size: 12px; color: #aaa; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; color: #333; margin-bottom: 6px; }
+    .form-group input { width: 100%; padding: 11px 14px; border: 1px solid var(--auth-border); border-radius: var(--auth-radius); font-size: 14px; color: #333; background: var(--auth-surface); transition: border-color 0.2s, box-shadow 0.2s; outline: none; }
+    .form-group input:focus { border-color: var(--auth-accent); box-shadow: 0 0 0 3px rgba(74,140,255,0.1); }
+    .form-group input::placeholder { color: var(--auth-ink-faint); }
+    .btn-submit { width: 100%; padding: 12px; background: linear-gradient(135deg, var(--auth-accent), var(--auth-accent-hover)); color: #fff; border: none; border-radius: var(--auth-radius); font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background 0.3s, transform 0.15s, box-shadow 0.2s; }
+    .btn-submit:hover { background: linear-gradient(135deg, #5a9aff, #4a7eef); box-shadow: 0 4px 12px rgba(74,140,255,0.3); transform: translateY(-1px); }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit:focus-visible { outline: 2px solid var(--auth-accent); outline-offset: 2px; }
+    .forgot-row { display: flex; justify-content: flex-end; margin: -4px 0 4px; }
+    .forgot-link { font-size: 12px; font-weight: 600; color: var(--auth-accent); text-decoration: none; }
+    .forgot-link:hover { text-decoration: underline; }
+    .success-message { background: #ecfdf3; color: #027a48; padding: 10px 14px; border-radius: var(--auth-radius); font-size: 13px; margin-bottom: 16px; text-align: center; }
+    .info-note { font-size: 12px; color: var(--auth-ink-soft); text-align: center; line-height: 1.6; margin-top: 4px; }
+    .login-link { text-align: center; margin-top: 24px; font-size: 13px; color: var(--auth-ink-soft); }
+    .login-link a { color: var(--auth-accent); font-weight: 600; text-decoration: none; }
+    .login-link a:hover { text-decoration: underline; }
+    .error-message { background: #fef2f2; color: #c0392b; padding: 10px 14px; border-radius: var(--auth-radius); font-size: 13px; margin-bottom: 16px; text-align: center; animation: shake 0.4s ease; }
+    @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+    @media (max-width: 768px) {
+        .card { flex-direction: column; min-height: auto; width: 95%; }
+        .left-panel { width: 100%; padding: 30px; min-height: 220px; }
+        .brand-tagline { font-size: 20px; }
+        .right-panel { width: 100%; padding: 30px 24px; }
+    }
+    @media (max-width: 480px) {
+        .left-panel { min-height: 150px; padding: 24px; }
+        .brand-logo { margin-bottom: 16px; }
+        .brand-subtitle { display: none; }
+        .right-panel { padding: 26px 20px; }
+        .card { width: 100%; border-radius: 0; box-shadow: none; }
+        body { align-items: stretch; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+</style>
+{% block auth_extra_css %}{% endblock %}

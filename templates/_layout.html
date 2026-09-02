@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Todos{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root, html[data-theme="light"] { --accent: #4A8CFF; --accent-color: #4A8CFF; --accent-hover: #3b6de0; --accent-soft: rgba(74,140,255,0.10); --bg: #f0f2f5; --sidebar-bg: #fff; --card-bg: #fff; --surface-2: #f7f8fa; --ink: #1f2233; --ink-soft: #6b7280; --ink-faint: #9aa0ad; --border: #e5e7eb; --success: #34a853; --success-soft: #e6f7ed; --warning: #e67e22; --warning-soft: #fff4e5; --warning-ink: #b8730a; --danger: #d64545; --danger-soft: #fdecec; --track: #eef0f4; }
+        html[data-theme="dark"] { --accent: #6C8CFF; --accent-color: #6C8CFF; --accent-hover: #5a7bef; --accent-soft: rgba(108,140,255,0.16); --bg: #0f1117; --sidebar-bg: #171a22; --card-bg: #171a22; --surface-2: #1e222c; --ink: #eef0f4; --ink-soft: #a7adba; --ink-faint: #6b7280; --border: #2a2f3a; --success: #4ec17f; --success-soft: rgba(52,168,83,0.16); --warning: #f5a623; --warning-soft: rgba(245,166,35,0.16); --warning-ink: #f0b060; --danger: #e5686b; --danger-soft: rgba(214,69,69,0.18); --track: #262b36; }
+        /* Design tokens — spacing (8px scale), radius, shadow, motion. */
+        :root { --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --shadow-sm: 0 1px 2px rgba(0,0,0,0.04); --shadow-md: 0 2px 8px rgba(0,0,0,0.05); --shadow-lg: 0 12px 32px rgba(0,0,0,0.10); --t-fast: .16s ease; --t-med: .24s cubic-bezier(0.4,0,0.2,1); }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { background: var(--bg); }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; color: var(--ink); }
+
+        /* Sidebar removed — navigation lives in the fluid menu. */
+
+        /* Main wrap + top bar */
+        .main-wrap { flex:1; min-width:0; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+        .topbar { display:flex; align-items:center; gap:24px; padding:10px 30px; border-bottom:1px solid var(--border); background:var(--sidebar-bg); }
+        .tb-clock { text-align:center; white-space:nowrap; margin-left:auto; }
+        .tb-clock .t { font-size:1.25rem; font-weight:700; letter-spacing:0.5px; color:var(--ink); }
+        .tb-clock .d { font-size:0.72rem; color:var(--ink-faint); margin-top:2px; }
+        .tb-divider { width:1px; align-self:stretch; background:var(--border); margin:4px 0; }
+        .tb-actions { display:flex; align-items:center; gap:12px; }
+        .tb-icon { width:40px; height:40px; border-radius:12px; border:1px solid var(--border); background:var(--sidebar-bg); color:var(--ink-soft); display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; font-size:1.15rem; transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast); }
+        .tb-icon:hover { color:var(--ink); background:var(--surface-2); }
+        .tb-icon:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+        .tb-icon.open { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+        .tb-dot { position:absolute; top:10px; right:11px; width:8px; height:8px; border-radius:50%; background:#e74c3c; border:2px solid var(--sidebar-bg); }
+        .tb-badge { position:absolute; top:-4px; right:-4px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#e5484d; color:#fff; font-size:0.62rem; font-weight:700; line-height:1; display:flex; align-items:center; justify-content:center; border:2px solid var(--sidebar-bg); }
+        .notif-wrap { position:relative; }
+        .notif-dd { position:absolute; top:52px; right:0; width:300px; background:var(--card-bg); border:1px solid var(--border); border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.16); padding:8px; display:none; z-index:200; }
+        .notif-dd.open { display:block; }
+        .notif-dd h6 { font-size:0.8rem; font-weight:700; padding:8px 10px 6px; color:var(--ink); margin:0; }
+        .notif-head { display:flex; align-items:center; justify-content:space-between; padding-right:4px; }
+        .notif-clear { background:none; border:none; color:var(--accent); font-size:0.72rem; font-weight:600; cursor:pointer; padding:6px 8px; border-radius:8px; transition:background .16s; }
+        .notif-clear:hover { background:var(--accent-soft,rgba(74,140,255,0.12)); }
+        .notif-clear:disabled { color:var(--ink-faint); cursor:default; background:none; }
+        .notif-item { display:flex; align-items:flex-start; gap:10px; padding:10px; border-radius:10px; }
+        .notif-item:hover { background:var(--surface-2); }
+        .notif-item .ni-title { font-size:0.83rem; color:var(--ink); }
+        .notif-dismiss { margin-left:auto; background:none; border:none; color:var(--ink-faint); font-size:1rem; line-height:1; cursor:pointer; padding:2px 6px; border-radius:6px; align-self:center; transition:background .16s,color .16s; }
+        .notif-dismiss:hover { color:var(--danger); background:var(--danger-soft); }
+        .notif-tag { font-size:0.64rem; font-weight:700; padding:2px 7px; border-radius:8px; margin-top:3px; display:inline-block; }
+        .nt-over { background:var(--danger-soft); color:var(--danger); } .nt-today { background:var(--warning-soft); color:var(--warning-ink); }
+        .notif-empty { padding:22px 12px; text-align:center; color:var(--ink-faint); font-size:0.82rem; }
+
+        /* Main */
+        .main { flex: 1; min-width: 0; padding: 32px 40px; overflow-y: auto; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
+        .page-title { font-size: 1.9rem; font-weight: 700; color: var(--ink); }
+        .page-subtitle { font-size: 0.9rem; color: var(--ink-soft); margin-top: 4px; }
+        .glass { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-md); }
+
+        /* Section heading — reusable across pages */
+        .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+        .section-head h5 { font-size: 1.05rem; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 9px; }
+        .section-head .sh-hint { font-size: 0.78rem; color: var(--ink-faint); }
+
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 22px; }
+        .stat-card { padding: 20px; transition: transform var(--t-med), box-shadow var(--t-med), border-color var(--t-med); }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+        .stat-card .stat-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .stat-card .stat-icon { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; margin-bottom: 0; }
+        .stat-card .stat-value { font-size: 1.9rem; font-weight: 700; color: var(--ink); line-height: 1.1; letter-spacing: -0.01em; }
+        .stat-card .stat-label { font-size: 0.82rem; color: var(--ink-soft); margin-top: 4px; }
+        .ic-blue { background: var(--accent-soft); color: var(--accent); }
+        .ic-green { background: var(--success-soft); color: var(--success); }
+        .ic-orange { background: var(--warning-soft); color: var(--warning); }
+        .ic-purple { background: #f0e8fe; color: #8b5cf6; }
+        html[data-theme="dark"] .ic-purple { background: rgba(139,92,246,0.18); color: #a98bff; }
+
+        /* Trend / status chip — subtle background, not a saturated block */
+        .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 20px; background: var(--surface-2); color: var(--ink-soft); }
+        .chip i { font-size: 0.8rem; }
+        .chip-up { background: var(--success-soft); color: var(--success); }
+        .chip-warn { background: var(--warning-soft); color: var(--warning); }
+
+        .progress-ring { width: 140px; height: 140px; }
+        .bar-row { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+        .bar-row:last-child { margin-bottom: 0; }
+        .bar-label { width: 96px; font-size: 0.85rem; color: var(--ink); font-weight: 500; }
+        .bar-track { flex: 1; height: 10px; background: var(--track); border-radius: 6px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), #8b5cf6); transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
+        .bar-val { width: 52px; text-align: right; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+        .todo-row { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+        .todo-row:last-child { border-bottom: none; }
+        .todo-row:hover { background: var(--surface-2); }
+        .todo-row .check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d1d5db; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .todo-row .check.done { background: #34a853; border-color: #34a853; color: #fff; }
+        .todo-row .t-title { flex: 1; font-size: 0.92rem; color: var(--ink); }
+        .todo-row.completed .t-title { text-decoration: line-through; color: var(--ink-faint); }
+        .cat-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 20px; background: var(--surface-2); color: var(--ink-soft); }
+
+        .empty { text-align: center; padding: 48px 24px; color: var(--ink-faint); }
+        .empty .empty-ic { width: 64px; height: 64px; border-radius: 16px; background: var(--surface-2); color: var(--ink-soft); display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 16px; }
+        .empty i { opacity: 1; }
+        .empty .empty-title { font-size: 1rem; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+        .empty .empty-sub { font-size: 0.85rem; color: var(--ink-soft); max-width: 340px; margin: 0 auto 18px; line-height: 1.5; }
+        .btn-back { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 20px; background: var(--accent); color: #fff; text-decoration: none; font-size: 0.88rem; font-weight: 500; transition: background 0.2s; }
+        .btn-back:hover { background: var(--accent-hover); color: #fff; }
+
+        /* Settings modal (themed — works in light + dark) */
+        .settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.25); display: none; align-items: center; justify-content: center; z-index: 1000; opacity: 0; transition: opacity 0.2s ease; }
+        .settings-overlay.open { display: flex; opacity: 1; }
+        .settings-modal { width: 100%; max-width: 380px; background: var(--card-bg); color: var(--ink); border: 1px solid var(--border); border-radius: 18px; padding: 24px; box-shadow: var(--shadow-lg); transform: translateY(12px) scale(0.98); transition: transform 0.22s ease; }
+        .settings-overlay.open .settings-modal { transform: translateY(0) scale(1); }
+        .sm-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .sm-title { font-size: 1.1rem; font-weight: 700; }
+        .sm-close { background: var(--surface-2); border: none; color: var(--ink-soft); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.18s; }
+        .sm-close:hover { background: var(--border); }
+        .sm-section { margin-bottom: 20px; }
+        .sm-section h6 { font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 12px; }
+        .acc-swatch { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: transform 0.1s; }
+        .acc-swatch:hover { transform: scale(1.12); }
+        .acc-swatch.active { border-color: var(--ink); }
+
+        /* Tablet */
+        @media (max-width: 900px) { .main { padding: 24px; } }
+
+        /* Phone */
+        @media (max-width: 768px) {
+            .main { padding: 18px 16px; }
+            .topbar { padding: 14px 16px; gap: 14px; }
+            .tb-icon { width: 40px; height: 40px; }
+        }
+        @media (max-width: 400px) {
+            .main { padding: 14px 12px; }
+            .page-title { font-size: 1.5rem; }
+            .notif-dd { width: calc(100vw - 32px); right: -8px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+        }
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <!-- Sidebar removed: navigation, theme toggle, profile and settings are now
+         provided by the fluid menu, included near the end of the body. -->
+
+    <!-- Settings Modal (themed, centered) -->
+    <div class="settings-overlay" id="settingsPanel" onclick="if(event.target===this)closeSettings()">
+        <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
+            <div class="sm-head">
+                <span class="sm-title">Settings</span>
+                <button class="sm-close" onclick="closeSettings()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="sm-section">
+                <h6><i class="bi bi-palette-fill me-2"></i>Accent Color</h6>
+                <div style="display:flex; gap:12px;">
+                    <div class="acc-swatch" style="background:#6C5CE7" data-color="#6C5CE7" onclick="setAccent(this)"></div>
+                    <div class="acc-swatch" style="background:#4A90D9" data-color="#4A90D9" onclick="setAccent(this)"></div>
+                    <div class="acc-swatch" style="background:#43b581" data-color="#43b581" onclick="setAccent(this)"></div>
+                    <div class="acc-swatch" style="background:#E67E22" data-color="#E67E22" onclick="setAccent(this)"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% include "_fluid_menu.html" %}
+
+    <div class="main-wrap">
+        <div class="topbar">
+            <div class="tb-clock"><div class="t" id="tbClockT">--:--:--</div><div class="d" id="tbClockD"></div></div>
+            <div class="tb-divider"></div>
+            <div class="tb-actions">
+                <div class="notif-wrap">
+                    <button class="tb-icon" id="bellBtn" title="Notifications" aria-label="Notifications" onclick="toggleNotif(event)"><i class="bi bi-bell-fill"></i><span class="tb-badge" id="notifBadge" style="display:none;">0</span></button>
+                    <div class="notif-dd" id="notifDD">
+                        <div class="notif-head"><h6>Notifications</h6><button type="button" class="notif-clear" id="notifClearBtn" onclick="clearAllNotifs(event)">Clear all</button></div>
+                        <div id="notifList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <main class="main">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Profile avatar + greeting
+        (function(){
+            const name = {{ (display_name or 'You')|tojson }};
+            const av = document.getElementById('avatar');
+            if (av) av.textContent = (name||'?').slice(0,2).toUpperCase();
+            const h = new Date().getHours();
+            const g = h<12?'Morning':h<18?'Afternoon':'Evening';
+            const gr = document.getElementById('greet');
+            if (gr) gr.textContent = g + ', ' + name;
+        })();
+
+        // Theme toggle (shared)
+        function setTheme(mode){
+            document.documentElement.setAttribute('data-theme', mode);
+            localStorage.setItem('todo_theme', mode);
+            document.querySelectorAll('.tt-opt').forEach(o => o.classList.toggle('active', o.dataset.theme === mode));
+        }
+        setTheme(localStorage.getItem('todo_theme') || 'light');
+
+        // Accent color (shared with board via list-scoped key)
+        const ACCENT_KEY = 'todo_settings_{{ list_id }}';
+        function getAccent() {
+            try { return (JSON.parse(localStorage.getItem(ACCENT_KEY)) || {}).accentColor || '#6C5CE7'; }
+            catch { return '#6C5CE7'; }
+        }
+        function applyAccent() {
+            const c = getAccent();
+            document.documentElement.style.setProperty('--accent', c);
+            document.documentElement.style.setProperty('--accent-color', c);
+            document.querySelectorAll('.acc-swatch').forEach(el => el.classList.toggle('active', el.dataset.color === c));
+        }
+        function setAccent(el) {
+            let s = {};
+            try { s = JSON.parse(localStorage.getItem(ACCENT_KEY)) || {}; } catch {}
+            s.accentColor = el.dataset.color;
+            localStorage.setItem(ACCENT_KEY, JSON.stringify(s));
+            applyAccent();
+        }
+        applyAccent();
+        function openSettings(e) { if (e) e.preventDefault(); document.getElementById('settingsPanel').classList.add('open'); }
+        function closeSettings() { document.getElementById('settingsPanel').classList.remove('open'); }
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSettings(); closeNotif(); } });
+
+        /* ── Top bar: live clock ── */
+        function tbTick(){
+            const now = new Date();
+            const t = document.getElementById('tbClockT'), d = document.getElementById('tbClockD');
+            if (t) t.textContent = now.toLocaleTimeString('en-US', { hour12:false });
+            if (d) d.textContent = now.toLocaleDateString('en-US', { weekday:'long', day:'numeric', month:'long' });
+        }
+        tbTick(); setInterval(tbTick, 1000);
+
+        /* ── Top bar: functional notifications (overdue + due today) ── */
+        const LAYOUT_LIST_ID = '{{ list_id }}';
+        function _sot(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+        function _iso(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+        function _overdue(t){ if(!t.due_date||t.completed) return false; return new Date(t.due_date+'T00:00:00') < _sot(); }
+        function _today(t){ if(!t.due_date) return false; return _iso(new Date(t.due_date+'T00:00:00'))===_iso(_sot()); }
+        function _esc(t){ const d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+        function toggleNotif(e){ e.stopPropagation(); const open=document.getElementById('notifDD').classList.toggle('open'); const b=document.getElementById('bellBtn'); if(b) b.classList.toggle('open', open); }
+        function closeNotif(){ const dd=document.getElementById('notifDD'); if(dd) dd.classList.remove('open'); const b=document.getElementById('bellBtn'); if(b) b.classList.remove('open'); }
+        document.addEventListener('click', e => { const w=document.querySelector('.notif-wrap'); if(w && !w.contains(e.target)) closeNotif(); });
+        // Dismissed notifications persist per-list (shared key across all pages).
+        const _NOTIF_DISMISS_KEY = `todo_notif_dismissed_${LAYOUT_LIST_ID}`;
+        function _getDismissed(){ try{ return new Set(JSON.parse(localStorage.getItem(_NOTIF_DISMISS_KEY))||[]); }catch{ return new Set(); } }
+        function _saveDismissed(set){ localStorage.setItem(_NOTIF_DISMISS_KEY, JSON.stringify([...set])); }
+        let _notifEligible = [];  // notif-eligible tasks from the most recent fetch
+
+        function _renderNotifs(){
+            const eligible = _notifEligible;
+            const eligibleIds = new Set(eligible.map(t => t.id));
+            const dismissed = _getDismissed(); let changed=false;
+            dismissed.forEach(id => { if(!eligibleIds.has(id)){ dismissed.delete(id); changed=true; } });
+            if(changed) _saveDismissed(dismissed);
+
+            const items = eligible.filter(t => !dismissed.has(t.id));
+            const badge = document.getElementById('notifBadge');
+            if(items.length){ badge.style.display='flex'; badge.textContent=items.length; } else { badge.style.display='none'; }
+            const clearBtn = document.getElementById('notifClearBtn');
+            if(clearBtn) clearBtn.disabled = !items.length;
+            const list = document.getElementById('notifList');
+            if(!items.length){ list.innerHTML='<div class="notif-empty"><i class="bi bi-check2-circle" style="font-size:1.6rem;display:block;margin-bottom:6px;"></i>You\'re all caught up!</div>'; return; }
+            list.innerHTML = items.map(t => {
+                const over=_overdue(t);
+                return `<div class="notif-item"><i class="bi ${over?'bi-exclamation-circle':'bi-clock'}" style="color:${over?'#d64545':'#b8730a'};margin-top:2px;"></i><div><div class="ni-title">${_esc(t.title)}</div><span class="notif-tag ${over?'nt-over':'nt-today'}">${over?'Overdue':'Due today'}</span></div><button type="button" class="notif-dismiss" title="Dismiss" aria-label="Dismiss notification" onclick="dismissNotif(event,${t.id})">&times;</button></div>`;
+            }).join('');
+        }
+        function dismissNotif(e,id){
+            if(e){ e.stopPropagation(); e.preventDefault(); }
+            const d=_getDismissed(); d.add(id); _saveDismissed(d); _renderNotifs();
+        }
+        function clearAllNotifs(e){
+            if(e){ e.stopPropagation(); e.preventDefault(); }
+            const d=_getDismissed(); _notifEligible.forEach(t=>d.add(t.id)); _saveDismissed(d); _renderNotifs();
+        }
+        async function loadNotifs(){
+            if(!LAYOUT_LIST_ID) return;
+            try{
+                const r = await fetch(`/api/${LAYOUT_LIST_ID}/todos`); if(!r.ok) return;
+                const todos = await r.json();
+                _notifEligible = todos.filter(t => !t.completed && (_overdue(t) || _today(t)));
+                _renderNotifs();
+            }catch(e){}
+        }
+        loadNotifs();
+        {% block extra_js %}{% endblock %}
+    </script>
+    {% include "_confetti.html" %}
+</body>
+</html>
