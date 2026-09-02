@@ -11,3 +11,61 @@ node_modules/
 pod-identity-setup/
 *.tgz
 helm-output/
+
+# Python test artifacts
+.pytest_cache/
+.hypothesis/
+.coverage
+
+# ─── Python ───
+*.py[cod]
+*$py.class
+build/
+dist/
+*.egg-info/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Virtualenv variants
+.venv/
+env/
+ENV/
+
+# ─── Test / coverage reports ───
+htmlcov/
+coverage.xml
+.coverage.*
+
+# ─── Local databases ───
+*.sqlite
+*.sqlite3
+*.db
+
+# ─── Environment files (keep .env ignored; allow committed examples) ───
+.env.*
+!.env.example
+
+# ─── Editor / IDE ───
+.vscode/
+.idea/
+*.swp
+*~
+
+# ─── OS ───
+.DS_Store
+Thumbs.db
+
+# ─── Reference design prototype (not part of the app) ───
+project/
+
+# ─── Markdown docs (ignore by default, keep essential READMEs) ───
+*.md
+!README.md
+!**/README.md
+!ArgoCD/s3-plugin/README-s3-http.md
+
+# ─── Test code ───
+tests/
+pytest.ini

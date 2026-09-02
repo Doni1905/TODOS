@@ -1,6 +1,6 @@
 # Todo App
 
-A Kanban-style Todo application built with Flask and MySQL, featuring a modern responsive UI with dynamic backgrounds, dark mode, and shareable lists. Fully containerized with Docker and deployable via Kubernetes using Helm charts and an ArgoCD GitOps pipeline on AWS EKS.
+A Kanban-style Todo application built with Flask and MySQL, featuring a modern, multi-page responsive UI with a command palette, task editing, drag-and-drop scheduling, analytics, dark mode, and per-user shareable lists. Fully containerized with Docker and deployable via Kubernetes using Helm charts and an ArgoCD GitOps pipeline on AWS EKS.
 
 ## Table of Contents
 
@@ -24,16 +24,37 @@ A Kanban-style Todo application built with Flask and MySQL, featuring a modern r
 
 ## Features
 
-- Three-column Kanban board: **Today**, **This Week**, **Eventually**
-- Unique shareable list URLs (each visitor gets a unique list ID)
-- Add, edit, complete, delete, and reorder tasks
-- Insert tasks at specific positions
-- Move tasks between categories
-- Bulk delete completed tasks
-- Dynamic backgrounds via the Unsplash API with configurable refresh intervals
-- Dark mode and accent color themes
-- Fully responsive design (mobile-friendly)
-- MySQL persistent storage with retry logic on startup
+**Task management**
+
+- Three-bucket Kanban board: **Today**, **This Week**, **Eventually**, with an automatic **Overdue** column
+- Drag-and-drop between buckets (due date is the source of truth for bucketing)
+- Add, complete, delete, and move tasks; insert at a specific position; bulk-delete completed
+- **Task edit modal** — click a card to edit its title, notes, due date, and bucket
+- **Due dates** with overdue / due-today awareness
+
+**Productivity UX**
+
+- **Command palette (⌘K / Ctrl+K)** — jump between pages, quick-add a task, or search open tasks
+- **Confetti** micro-interaction on completion (respects `prefers-reduced-motion`)
+- **Toasts with Undo** for completing and deleting tasks
+- In-app **notifications** for overdue and due-today tasks (dismissible, persisted per list)
+
+**Pages**
+
+- **Dashboard** — greeting, bucket stat cards, week strip, momentum rings, and an activity streak
+- **Overview** — completion-rate hero ring, key metrics, category breakdown, and recent activity
+- **Analytics** — completion ring, category bars, weekly completion sparkline, and a consistency heatmap
+- **Schedule** — a full calendar (FullCalendar) with drag-to-reschedule and click-to-add
+- **Completed** — finished tasks grouped by bucket with a one-click **Restore**
+
+**Accounts & platform**
+
+- Email/password **authentication** with signup, login, logout, and password reset
+- Unique **shareable list URLs** (each account gets its own list ID; ownership enforced)
+- Security hardening: CSRF protection, rate limiting, secure session cookies
+- Dark mode and accent color themes; fully responsive (mobile-friendly)
+- MySQL persistent storage with startup retry logic and an idempotent `due_date` migration
+- Health probes (`/healthz`, `/readyz`) for Kubernetes
 
 ## Tech Stack
 
@@ -115,17 +136,24 @@ The app will automatically create the database tables on first run. MySQL data i
 
 ## API Reference
 
-All endpoints are scoped to a list ID: `/api/<list_id>/...`
+Data endpoints are scoped to a list ID (`/api/<list_id>/...`) and require an authenticated session that owns the list.
 
 | Method   | Endpoint                            | Description                              |
 | -------- | ----------------------------------- | ---------------------------------------- |
 | `GET`    | `/api/<list_id>/todos`              | Get all todos for a list (ordered by position) |
-| `POST`   | `/api/<list_id>/todo`               | Create a new todo                        |
+| `POST`   | `/api/<list_id>/todo`               | Create a new todo (optional `due_date`)  |
 | `POST`   | `/api/<list_id>/todo/insert/index`  | Insert a todo at a specific index        |
-| `PUT`    | `/api/<list_id>/todo/<id>`          | Update a todo (title, description, completed, category) |
+| `PUT`    | `/api/<list_id>/todo/<id>`          | Update a todo (title, description, completed, category, due_date) |
 | `PATCH`  | `/api/<list_id>/todo/<id>/move`     | Move a todo to a different category      |
+| `PATCH`  | `/api/<list_id>/todo/<id>/date`     | Set or clear a todo's due date (calendar reschedule) |
 | `DELETE` | `/api/<list_id>/todo/<id>`          | Delete a todo                            |
 | `DELETE` | `/api/<list_id>/todos/completed`    | Delete all completed todos in a list     |
+| `GET`    | `/api/<list_id>/stats`              | Completion stats for the list            |
+| `GET`    | `/api/<list_id>/calendar`           | Dated tasks as calendar events           |
+
+**Pages (session-authenticated):** `/login`, `/signup`, `/logout`, `/forgot-password`, `/reset-password/<token>`, `/list/<list_id>` (board), `/dashboard`, `/overview`, `/analytics`, `/schedule`, `/completed`
+
+**Health probes (no auth):** `GET /healthz` (liveness), `GET /readyz` (readiness, checks the DB)
 
 ### Request/Response Examples
 
@@ -147,7 +175,8 @@ curl -X POST http://localhost:5001/api/abc12345/todo \
   "description": "Milk, eggs, bread",
   "completed": false,
   "category": "today",
-  "position": 0
+  "position": 0,
+  "due_date": null
 }
 ```
 
@@ -257,8 +286,19 @@ ArgoCD detects the new chart version and auto-syncs the deployment.
 ```
 .
 ├── app_db.py                    # Flask application (routes, models, config)
-├── templates/
-│   └── index.html               # Single-page frontend UI
+├── templates/                   # Jinja templates (one per page + shared partials)
+│   ├── _layout.html             # Base layout (topbar, notifications, shared JS)
+│   ├── _fluid_menu.html         # Floating navigation menu
+│   ├── _confetti.html           # Shared confetti micro-interaction
+│   ├── _auth_styles.html        # Shared styles for auth pages
+│   ├── index.html               # Kanban board (My Tasks) + command palette + task modal
+│   ├── dashboard.html           # Dashboard (stats, week strip, momentum, streak)
+│   ├── overview.html            # Overview (completion ring, metrics, activity)
+│   ├── analytics.html           # Analytics (sparkline + consistency heatmap)
+│   ├── schedule.html            # Calendar (FullCalendar)
+│   ├── completed.html           # Completed tasks (grouped, with Restore)
+│   ├── login.html / signup.html # Authentication
+│   └── forgot_password.html / reset_password.html
 ├── Dockerfile                   # Container image definition
 ├── docker-compose.yml           # Local dev environment
 ├── requirements.txt             # Python dependencies
