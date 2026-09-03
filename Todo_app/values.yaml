@@ -17,6 +17,16 @@ flask:
   env:
     UNSPLASH_ACCESS_KEY: ""
 
+# Application secret (Flask SECRET_KEY). Required in production — the app
+# refuses to start without it. Precedence:
+#   1. app.existingSecret  -> use a pre-created Secret (key: secret-key)
+#   2. app.secretKey       -> chart creates a Secret from this value
+#   3. neither             -> chart generates a random key on first install
+#                             and reuses it on upgrades (via lookup)
+app:
+  existingSecret: ""
+  secretKey: ""
+
 # Unsplash API secret configuration
 unsplash:
   # If set, use this pre-created Secret (must contain key: unsplash-access-key)

@@ -72,3 +72,15 @@ Uses an existing (pre-created) Secret if provided, otherwise the generated one.
 {{- printf "%s-unsplash" (include "Todo_app.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Resolve the app (Flask SECRET_KEY) secret name.
+Uses an existing (pre-created) Secret if provided, otherwise the generated one.
+*/}}
+{{- define "Todo_app.appSecretName" -}}
+{{- if .Values.app.existingSecret -}}
+{{- .Values.app.existingSecret -}}
+{{- else -}}
+{{- printf "%s-app-secret" (include "Todo_app.fullname" .) -}}
+{{- end -}}
+{{- end -}}

@@ -46,6 +46,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "Todo_app.mysqlSecretName" . }}
                   key: mysql-database
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "Todo_app.appSecretName" . }}
+                  key: secret-key
             {{- if or .Values.unsplash.existingSecret .Values.unsplash.accessKey }}
             - name: UNSPLASH_ACCESS_KEY
               valueFrom:
