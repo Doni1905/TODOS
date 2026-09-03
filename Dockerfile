@@ -34,5 +34,6 @@ EXPOSE 5001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fsS http://localhost:5001/healthz || exit 1
 
-# Gunicorn: workers via env (default 2), sane timeouts, access logs to stdout
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${GUNICORN_WORKERS:-2} --timeout 60 --graceful-timeout 30 --access-logfile - --error-logfile - app_db:app"]
+# Gunicorn: gthread worker with a small worker count + threads for concurrency
+# without extra memory cost. Tunable via env. Access logs to stdout.
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${GUNICORN_WORKERS:-2} --threads ${GUNICORN_THREADS:-4} --worker-class gthread --timeout 60 --graceful-timeout 30 --keep-alive 5 --access-logfile - --error-logfile - app_db:app"]

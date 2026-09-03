@@ -851,7 +851,7 @@ for _rule in app.url_map.iter_rules():
             csrf.exempt(_view)
 
 
-# ─── Security headers ───
+# ─── Security + caching headers ───
 @app.after_request
 def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -860,6 +860,23 @@ def set_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     if IS_PRODUCTION:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+
+    # ── Caching ──
+    # Only set caching if a handler hasn't already chosen one.
+    if 'Cache-Control' not in response.headers:
+        path = request.path
+        if path.startswith('/static/'):
+            # Bundled assets are content-stable; cache hard so navigation
+            # between pages does not re-download them.
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        elif path.startswith('/api/'):
+            # Task data must always be fresh.
+            response.headers['Cache-Control'] = 'no-store'
+        else:
+            # HTML pages: let the browser reuse a cached copy instantly but
+            # revalidate in the background, so back/forward and re-navigation
+            # feel instant without ever showing stale logged-in content.
+            response.headers['Cache-Control'] = 'private, no-cache'
     return response
 
 
